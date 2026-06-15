@@ -1,0 +1,23 @@
+## .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+
+## Exports and local data
+exports/
+*.csv
+
+## IDE
+.idea/
+*.swp
+
+## Environment
+.env
+appsettings.Development.json
+appsettings.Local.json
+
+## OS
+Thumbs.db
+.DS_Store

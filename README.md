@@ -1,0 +1,115 @@
+# Technical Scanner
+
+Generic technical indicator market scanner for US and Canadian equities. Evaluates modular indicators (BMSB, RSI, SMA, EMA, Bollinger Bands), applies composable signal rules, calculates breadth metrics, and exports scan results.
+
+Built from the implementation plan in `docs/generic_technical_market_scanner_plan.md`.
+
+## Architecture
+
+```text
+Ticker universe
+    -> price data
+        -> indicator calculations
+            -> signal rules
+                -> scan results
+                    -> breadth summaries
+                        -> dashboard / alerts / backtests
+```
+
+### Projects
+
+| Project | Purpose |
+|---------|---------|
+| `TechnicalScanner.Domain` | Entities and enums |
+| `TechnicalScanner.Application` | Indicator calculators, services, signal engine |
+| `TechnicalScanner.Infrastructure` | EF Core persistence, market data providers |
+| `TechnicalScanner.Worker` | CLI batch jobs |
+| `TechnicalScanner.Api` | REST API (Phase 5 skeleton) |
+| `TechnicalScanner.Tests` | Unit tests |
+
+## Prerequisites
+
+- [.NET 10 SDK](https://dotnet.microsoft.com/download)
+- [Docker](https://www.docker.com/) (optional, for PostgreSQL)
+
+## Quick start
+
+### 1. Start PostgreSQL
+
+```bash
+docker compose up -d
+```
+
+### 2. Run migrations and seed data
+
+Migrations run automatically on worker/API startup.
+
+### 3. Run the Phase 1 vertical slice
+
+```bash
+dotnet run --project src/TechnicalScanner.Worker -- import-tickers
+dotnet run --project src/TechnicalScanner.Worker -- update-prices --years 10
+dotnet run --project src/TechnicalScanner.Worker -- aggregate-candles --timeframes W,M
+dotnet run --project src/TechnicalScanner.Worker -- calculate-indicators
+dotnet run --project src/TechnicalScanner.Worker -- export-csv ./exports/generic_indicator_latest.csv
+```
+
+Optional follow-on commands:
+
+```bash
+dotnet run --project src/TechnicalScanner.Worker -- evaluate-signals
+dotnet run --project src/TechnicalScanner.Worker -- calculate-scores
+dotnet run --project src/TechnicalScanner.Worker -- calculate-breadth
+```
+
+### 4. Start the API
+
+```bash
+dotnet run --project src/TechnicalScanner.Api
+```
+
+Swagger UI is available in Development at `/swagger`.
+
+## Configuration
+
+Connection string in `appsettings.json`:
+
+```json
+"ConnectionStrings": {
+  "TechnicalScanner": "Host=localhost;Port=5432;Database=technical_scanner;Username=postgres;Password=postgres"
+}
+```
+
+## Seeded indicators
+
+- `BMSB_W` — Bull Market Support Band (weekly)
+- `RSI_14_D`, `RSI_14_W`, `RSI_14_M`
+- `SMA_50_W`, `SMA_100_W`, `SMA_200_W`, `SMA_200_D`
+- `EMA_21_W`
+- `BB_20_2_D`, `BB_20_2_W`, `BB_20_2_M`
+
+## Market data
+
+Phase 1 uses `SeedMarketDataProvider` with deterministic synthetic daily candles for 10 liquid US/CA symbols (AAPL, MSFT, NVDA, TSLA, SPY, QQQ, SHOP, RY, TD, XIU). Replace with a Yahoo Finance or Polygon.io provider for production.
+
+## Tests
+
+```bash
+dotnet test
+```
+
+## Implementation phases
+
+| Phase | Status |
+|-------|--------|
+| 1 — Generic vertical slice | Scaffolded |
+| 2 — Signal engine | Scaffolded |
+| 3 — Composite scoring | Scaffolded |
+| 4 — Full universe scanner | Planned |
+| 5 — API | Skeleton |
+| 6 — Dashboard | Planned |
+| 7 — Alerts | Planned |
+
+## Disclaimer
+
+Scores and signals are ranking heuristics for research — not trading advice.

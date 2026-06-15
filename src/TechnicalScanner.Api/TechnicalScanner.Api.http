@@ -1,0 +1,6 @@
+@TechnicalScanner.Api_HostAddress = http://localhost:5223
+
+GET {{TechnicalScanner.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

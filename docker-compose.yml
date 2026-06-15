@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: technical-scanner-postgres
+    environment:
+      POSTGRES_DB: technical_scanner
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - technical_scanner_pgdata:/var/lib/postgresql/data
+
+volumes:
+  technical_scanner_pgdata:
