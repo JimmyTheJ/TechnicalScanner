@@ -24,7 +24,8 @@ Ticker universe
 | `TechnicalScanner.Application` | Indicator calculators, services, signal engine |
 | `TechnicalScanner.Infrastructure` | EF Core persistence, market data providers |
 | `TechnicalScanner.Worker` | CLI batch jobs |
-| `TechnicalScanner.Api` | REST API (Phase 5 skeleton) |
+| `TechnicalScanner.Api` | REST API |
+| `TechnicalScanner.Web` | React dashboard (Phase 6) |
 | `TechnicalScanner.Tests` | Unit tests |
 
 ## Prerequisites
@@ -94,6 +95,25 @@ Example screener query:
 ```http
 GET /api/scanner/screener?country=US&signal=BMSB_BELOW&minCompositeScore=3&sort=compositeScoreDesc&page=1&pageSize=50
 ```
+
+### 5. Start the dashboard
+
+In a second terminal:
+
+```bash
+cd src/TechnicalScanner.Web
+npm install
+npm run dev
+```
+
+The dashboard runs at `http://localhost:5173` and proxies API requests to `http://localhost:5223`.
+
+Pages:
+- **Overview** — latest scan summary, breadth bars, sector heatmap, recent signal matches
+- **Screener** — filterable/sortable table with CSV export and saved filters
+- **Breadth** — latest breadth metrics and history charts
+- **Watchlists** — local watchlists and saved screener filters
+- **Stock detail** — `/stocks/{symbol}` indicator breakdown and RSI history
 
 ## Configuration
 
@@ -165,7 +185,7 @@ dotnet test
 | 3 — Composite scoring | Scaffolded |
 | 4 — Full universe scanner | Implemented |
 | 5 — API | Implemented |
-| 6 — Dashboard | Planned |
+| 6 — Dashboard | Implemented |
 | 7 — Alerts | Planned |
 
 ## Disclaimer
