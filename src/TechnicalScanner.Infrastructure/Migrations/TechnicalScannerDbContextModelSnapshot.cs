@@ -22,6 +22,97 @@ namespace TechnicalScanner.Infrastructure.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("TechnicalScanner.Domain.Entities.AlertDelivery", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<long>("AlertEventId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTimeOffset?>("AttemptedUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Channel")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset>("CreatedUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Destination")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("ErrorMessage")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AlertEventId", "Channel");
+
+                    b.ToTable("alert_delivery", (string)null);
+                });
+
+            modelBuilder.Entity("TechnicalScanner.Domain.Entities.AlertEvent", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTimeOffset>("CreatedUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DetailsJson")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("details");
+
+                    b.Property<DateTimeOffset>("DetectedUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<long?>("ScanRunId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("SubjectKey")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("SubjectType")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DetectedUtc");
+
+                    b.HasIndex("ScanRunId");
+
+                    b.HasIndex("EventType", "SubjectType", "SubjectKey", "DetectedUtc");
+
+                    b.ToTable("alert_event", (string)null);
+                });
+
             modelBuilder.Entity("TechnicalScanner.Domain.Entities.BreadthSnapshot", b =>
                 {
                     b.Property<long>("Id")
@@ -61,6 +152,9 @@ namespace TechnicalScanner.Infrastructure.Migrations
                     b.Property<DateTimeOffset>("ScanDateUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<long?>("ScanRunId")
+                        .HasColumnType("bigint");
+
                     b.Property<string>("Sector")
                         .HasColumnType("text");
 
@@ -72,6 +166,8 @@ namespace TechnicalScanner.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ScanRunId", "MetricCode");
 
                     b.ToTable("breadth_snapshot", (string)null);
                 });
@@ -287,6 +383,9 @@ namespace TechnicalScanner.Infrastructure.Migrations
                     b.Property<DateTimeOffset>("ScanDateUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<long?>("ScanRunId")
+                        .HasColumnType("bigint");
+
                     b.Property<decimal>("Score")
                         .HasColumnType("numeric");
 
@@ -303,6 +402,8 @@ namespace TechnicalScanner.Infrastructure.Migrations
 
                     b.HasIndex("ScanDateUtc", "TickerId", "ScoreCode")
                         .IsUnique();
+
+                    b.HasIndex("ScanRunId", "TickerId", "ScoreCode");
 
                     b.ToTable("scan_score", (string)null);
                 });
@@ -376,6 +477,9 @@ namespace TechnicalScanner.Infrastructure.Migrations
                     b.Property<DateTimeOffset>("ScanDateUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<long?>("ScanRunId")
+                        .HasColumnType("bigint");
+
                     b.Property<decimal?>("Score")
                         .HasColumnType("numeric");
 
@@ -399,6 +503,8 @@ namespace TechnicalScanner.Infrastructure.Migrations
 
                     b.HasIndex("ScanDateUtc", "TickerId", "SignalDefinitionId")
                         .IsUnique();
+
+                    b.HasIndex("ScanRunId", "TickerId", "SignalDefinitionId");
 
                     b.ToTable("signal_result", (string)null);
                 });
@@ -496,6 +602,35 @@ namespace TechnicalScanner.Infrastructure.Migrations
                     b.ToTable("ticker_operation_failure", (string)null);
                 });
 
+            modelBuilder.Entity("TechnicalScanner.Domain.Entities.AlertDelivery", b =>
+                {
+                    b.HasOne("TechnicalScanner.Domain.Entities.AlertEvent", "AlertEvent")
+                        .WithMany("Deliveries")
+                        .HasForeignKey("AlertEventId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("AlertEvent");
+                });
+
+            modelBuilder.Entity("TechnicalScanner.Domain.Entities.AlertEvent", b =>
+                {
+                    b.HasOne("TechnicalScanner.Domain.Entities.ScanRun", "ScanRun")
+                        .WithMany()
+                        .HasForeignKey("ScanRunId");
+
+                    b.Navigation("ScanRun");
+                });
+
+            modelBuilder.Entity("TechnicalScanner.Domain.Entities.BreadthSnapshot", b =>
+                {
+                    b.HasOne("TechnicalScanner.Domain.Entities.ScanRun", "ScanRun")
+                        .WithMany()
+                        .HasForeignKey("ScanRunId");
+
+                    b.Navigation("ScanRun");
+                });
+
             modelBuilder.Entity("TechnicalScanner.Domain.Entities.IndicatorValue", b =>
                 {
                     b.HasOne("TechnicalScanner.Domain.Entities.IndicatorDefinition", "IndicatorDefinition")
@@ -528,11 +663,17 @@ namespace TechnicalScanner.Infrastructure.Migrations
 
             modelBuilder.Entity("TechnicalScanner.Domain.Entities.ScanScore", b =>
                 {
+                    b.HasOne("TechnicalScanner.Domain.Entities.ScanRun", "ScanRun")
+                        .WithMany()
+                        .HasForeignKey("ScanRunId");
+
                     b.HasOne("TechnicalScanner.Domain.Entities.Ticker", "Ticker")
                         .WithMany("ScanScores")
                         .HasForeignKey("TickerId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("ScanRun");
 
                     b.Navigation("Ticker");
                 });
@@ -548,6 +689,10 @@ namespace TechnicalScanner.Infrastructure.Migrations
 
             modelBuilder.Entity("TechnicalScanner.Domain.Entities.SignalResult", b =>
                 {
+                    b.HasOne("TechnicalScanner.Domain.Entities.ScanRun", "ScanRun")
+                        .WithMany()
+                        .HasForeignKey("ScanRunId");
+
                     b.HasOne("TechnicalScanner.Domain.Entities.SignalDefinition", "SignalDefinition")
                         .WithMany("SignalResults")
                         .HasForeignKey("SignalDefinitionId")
@@ -559,6 +704,8 @@ namespace TechnicalScanner.Infrastructure.Migrations
                         .HasForeignKey("TickerId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("ScanRun");
 
                     b.Navigation("SignalDefinition");
 
@@ -578,6 +725,11 @@ namespace TechnicalScanner.Infrastructure.Migrations
                     b.Navigation("ScanRun");
 
                     b.Navigation("Ticker");
+                });
+
+            modelBuilder.Entity("TechnicalScanner.Domain.Entities.AlertEvent", b =>
+                {
+                    b.Navigation("Deliveries");
                 });
 
             modelBuilder.Entity("TechnicalScanner.Domain.Entities.IndicatorDefinition", b =>

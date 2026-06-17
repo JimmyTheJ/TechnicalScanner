@@ -9,6 +9,7 @@ using TechnicalScanner.Application.Options;
 using TechnicalScanner.Domain.Entities;
 using TechnicalScanner.Infrastructure.MarketData;
 using TechnicalScanner.Infrastructure.MarketData.Universe;
+using TechnicalScanner.Infrastructure.Notifications;
 using TechnicalScanner.Infrastructure.Persistence;
 
 namespace TechnicalScanner.Infrastructure;
@@ -21,6 +22,7 @@ public static class DependencyInjection
             ?? "Host=localhost;Port=5432;Database=technical_scanner;Username=postgres;Password=postgres";
 
         services.Configure<MarketDataOptions>(configuration.GetSection(MarketDataOptions.SectionName));
+        services.Configure<AlertsOptions>(configuration.GetSection(AlertsOptions.SectionName));
 
         services.AddDbContext<TechnicalScannerDbContext>(options =>
             options.UseNpgsql(connectionString));
@@ -57,6 +59,17 @@ public static class DependencyInjection
                 sp.GetRequiredService<IOptions<MarketDataOptions>>(),
                 sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<ResilientRateLimitedMarketDataProvider>>());
         });
+
+        services.AddHttpClient(nameof(HttpAlertChannelBase), client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(30);
+        });
+
+        services.AddSingleton<IAlertChannel, WebhookAlertChannel>();
+        services.AddSingleton<IAlertChannel, DiscordAlertChannel>();
+        services.AddSingleton<IAlertChannel, SlackAlertChannel>();
+        services.AddSingleton<IAlertChannel, TelegramAlertChannel>();
+        services.AddSingleton<IAlertChannel, EmailAlertChannel>();
 
         services.AddApplication();
 
@@ -103,7 +116,8 @@ internal static class SeedData
                 Signal("PRICE_ABOVE_200D_SMA", "Price Above 200D SMA", "SMA_200_D", "closeAboveSma", "=", true),
                 Signal("PRICE_BELOW_200D_SMA", "Price Below 200D SMA", "SMA_200_D", "closeBelowSma", "=", true),
                 Signal("BB_D_BELOW_LOWER", "Daily Close Below Lower Bollinger Band", "BB_20_2_D", "status", "=", "CloseBelowLowerBand"),
-                Signal("BB_D_ABOVE_UPPER", "Daily Close Above Upper Bollinger Band", "BB_20_2_D", "status", "=", "CloseAboveUpperBand"));
+                Signal("BB_D_ABOVE_UPPER", "Daily Close Above Upper Bollinger Band", "BB_20_2_D", "status", "=", "CloseAboveUpperBand"),
+                Signal("RSI_W_ABOVE_50", "Weekly RSI Above 50", "RSI_14_W", "rsi", ">=", 50));
         }
 
         await db.SaveChangesAsync(cancellationToken);

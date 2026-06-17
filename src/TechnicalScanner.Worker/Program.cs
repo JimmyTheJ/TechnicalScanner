@@ -41,13 +41,13 @@ switch (command)
         await services.GetRequiredService<IndicatorCalculationService>().CalculateAsync(CancellationToken.None);
         break;
     case "evaluate-signals":
-        await services.GetRequiredService<SignalEvaluationService>().EvaluateAsync(CancellationToken.None);
+        await services.GetRequiredService<SignalEvaluationService>().EvaluateAsync(null, CancellationToken.None);
         break;
     case "calculate-scores":
-        await services.GetRequiredService<CompositeScoringService>().CalculateAsync(CancellationToken.None);
+        await services.GetRequiredService<CompositeScoringService>().CalculateAsync(null, CancellationToken.None);
         break;
     case "calculate-breadth":
-        await services.GetRequiredService<BreadthCalculationService>().CalculateAsync(CancellationToken.None);
+        await services.GetRequiredService<BreadthCalculationService>().CalculateAsync(null, CancellationToken.None);
         break;
     case "export-csv":
     {
@@ -64,9 +64,25 @@ switch (command)
         var years = ParseIntOption(args, "--years", 10);
         var incremental = !args.Contains("--full");
         var exportPath = ParseStringOption(args, "--export", "./exports/generic_indicator_latest.csv");
+        var sendAlerts = !args.Contains("--no-alerts");
         var scan = await services.GetRequiredService<NightlyScanService>()
-            .RunAsync(incremental, years, exportPath, CancellationToken.None);
+            .RunAsync(incremental, years, exportPath, sendAlerts, CancellationToken.None);
         Console.WriteLine($"Nightly scan {scan.Id} completed with status {scan.Status}.");
+        break;
+    }
+    case "send-alerts":
+    {
+        var scanRunId = ParseLongOption(args, "--scan-run", null);
+        if (scanRunId is null)
+        {
+            Console.WriteLine("--scan-run is required for send-alerts.");
+            Environment.ExitCode = 1;
+            break;
+        }
+
+        var sent = await services.GetRequiredService<AlertService>()
+            .ProcessTransitionsAsync(scanRunId.Value, CancellationToken.None);
+        Console.WriteLine($"Processed {sent} alert transitions for scan {scanRunId}.");
         break;
     }
     default:
@@ -90,7 +106,8 @@ static void PrintUsage()
           calculate-scores
           calculate-breadth
           export-csv ./exports/generic_indicator_latest.csv
-          run-nightly-scan --years 10 [--full] [--export ./exports/generic_indicator_latest.csv]
+          send-alerts --scan-run 1
+          run-nightly-scan --years 10 [--full] [--export ./exports/generic_indicator_latest.csv] [--no-alerts]
         """);
 }
 
@@ -111,6 +128,17 @@ static string? ParseStringOption(string[] args, string optionName, string? defau
     if (index >= 0 && index + 1 < args.Length)
     {
         return args[index + 1];
+    }
+
+    return defaultValue;
+}
+
+static long? ParseLongOption(string[] args, string optionName, long? defaultValue)
+{
+    var index = Array.IndexOf(args, optionName);
+    if (index >= 0 && index + 1 < args.Length && long.TryParse(args[index + 1], out var value))
+    {
+        return value;
     }
 
     return defaultValue;

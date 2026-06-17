@@ -89,6 +89,9 @@ Swagger UI is available at `/swagger`.
 | `GET /api/scanner/scores` | Composite scores (paginated) |
 | `GET /api/breadth/latest` | Latest breadth metrics |
 | `GET /api/breadth/history?metricCode=...` | Breadth metric history |
+| `GET /api/alerts/events` | Recent alert events |
+| `GET /api/alerts/events/{id}` | Single alert event |
+| `GET /api/alerts/events/{id}/deliveries` | Channel delivery status |
 
 Example screener query:
 
@@ -168,7 +171,49 @@ Market data calls are wrapped with configurable rate limiting and transient retr
 dotnet run --project src/TechnicalScanner.Worker -- run-nightly-scan --years 10 --export ./exports/generic_indicator_latest.csv
 ```
 
-This runs: import tickers → incremental prices → aggregate candles → indicators → signals → scores → breadth → optional CSV export. Failures are logged per ticker in `ticker_operation_failure` and summarized in `scan_run`.
+This runs: import tickers → incremental prices → aggregate candles → indicators → signals → scores → breadth → optional CSV export → optional alerts. Failures are logged per ticker in `ticker_operation_failure` and summarized in `scan_run`.
+
+Use `--no-alerts` to skip alert processing on a nightly run. To replay alerts for a prior scan:
+
+```bash
+dotnet run --project src/TechnicalScanner.Worker -- send-alerts --scan-run 12
+```
+
+## Alerts (Phase 7)
+
+Alerts detect **transitions** between consecutive completed scans:
+
+- Signal fired or cleared (e.g. BMSB cross, RSI oversold recovery, price vs 200D SMA)
+- Composite score crossing a threshold (default `DEEP_PULLBACK` ≥ 4)
+- Market breadth crossing configured levels (default BMSB above-band % below 20% or above 50%)
+
+Enable in `appsettings.json`:
+
+```json
+"Alerts": {
+  "Enabled": true,
+  "NotifyOnSignalFired": true,
+  "CompositeScoreThreshold": 4,
+  "Channels": {
+    "Webhook": { "Enabled": true, "Url": "https://example.com/hooks/scanner" },
+    "Discord": { "Enabled": true, "WebhookUrl": "https://discord.com/api/webhooks/..." },
+    "Slack": { "Enabled": true, "WebhookUrl": "https://hooks.slack.com/services/..." },
+    "Telegram": { "Enabled": true, "BotToken": "...", "ChatId": "..." },
+    "Email": {
+      "Enabled": true,
+      "SmtpHost": "smtp.example.com",
+      "SmtpPort": 587,
+      "UseSsl": true,
+      "Username": "...",
+      "Password": "...",
+      "FromAddress": "scanner@example.com",
+      "ToAddress": "you@example.com"
+    }
+  }
+}
+```
+
+Alert events and per-channel delivery status are stored in `alert_event` / `alert_delivery` and exposed via the API.
 
 ## Tests
 
@@ -186,7 +231,7 @@ dotnet test
 | 4 — Full universe scanner | Implemented |
 | 5 — API | Implemented |
 | 6 — Dashboard | Implemented |
-| 7 — Alerts | Planned |
+| 7 — Alerts | Implemented |
 
 ## Disclaimer
 

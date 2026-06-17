@@ -11,7 +11,7 @@ public sealed class SignalEvaluationService(
     SignalRuleEvaluator ruleEvaluator,
     ILogger<SignalEvaluationService> logger)
 {
-    public async Task<int> EvaluateAsync(CancellationToken cancellationToken)
+    public async Task<int> EvaluateAsync(long? scanRunId = null, CancellationToken cancellationToken = default)
     {
         var scanDate = DateTimeOffset.UtcNow;
         var signals = dbContext.SignalDefinitions.Where(s => s.IsActive).ToList();
@@ -49,6 +49,7 @@ public sealed class SignalEvaluationService(
                 {
                     dbContext.Add(new SignalResult
                     {
+                        ScanRunId = scanRunId,
                         ScanDateUtc = scanDate,
                         TickerId = ticker.Id,
                         SignalDefinitionId = signal.Id,
@@ -58,6 +59,7 @@ public sealed class SignalEvaluationService(
                 }
                 else
                 {
+                    existing.ScanRunId = scanRunId;
                     existing.IsMatch = isMatch;
                     existing.ValuesJson = JsonSerializer.Serialize(valuesByCode);
                 }

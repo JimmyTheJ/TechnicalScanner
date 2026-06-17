@@ -17,6 +17,8 @@ public sealed class TechnicalScannerDbContext(DbContextOptions<TechnicalScannerD
     public DbSet<BreadthSnapshot> BreadthSnapshots => Set<BreadthSnapshot>();
     public DbSet<ScanRun> ScanRuns => Set<ScanRun>();
     public DbSet<TickerOperationFailure> TickerOperationFailures => Set<TickerOperationFailure>();
+    public DbSet<AlertEvent> AlertEvents => Set<AlertEvent>();
+    public DbSet<AlertDelivery> AlertDeliveries => Set<AlertDelivery>();
 
     IQueryable<Ticker> ITechnicalScannerDbContext.Tickers => Tickers;
     IQueryable<PriceCandle> ITechnicalScannerDbContext.PriceCandles => PriceCandles;
@@ -28,6 +30,8 @@ public sealed class TechnicalScannerDbContext(DbContextOptions<TechnicalScannerD
     IQueryable<BreadthSnapshot> ITechnicalScannerDbContext.BreadthSnapshots => BreadthSnapshots;
     IQueryable<ScanRun> ITechnicalScannerDbContext.ScanRuns => ScanRuns;
     IQueryable<TickerOperationFailure> ITechnicalScannerDbContext.TickerOperationFailures => TickerOperationFailures;
+    IQueryable<AlertEvent> ITechnicalScannerDbContext.AlertEvents => AlertEvents;
+    IQueryable<AlertDelivery> ITechnicalScannerDbContext.AlertDeliveries => AlertDeliveries;
 
     public new void Add<TEntity>(TEntity entity) where TEntity : class => Set<TEntity>().Add(entity);
 

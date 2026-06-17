@@ -18,6 +18,7 @@ public sealed class NightlyScanService(
     CompositeScoringService compositeScoringService,
     BreadthCalculationService breadthCalculationService,
     CsvExportService csvExportService,
+    AlertService alertService,
     ITickerOperationLogger tickerOperationLogger,
     IOptions<MarketDataOptions> marketDataOptions,
     ILogger<NightlyScanService> logger)
@@ -26,6 +27,7 @@ public sealed class NightlyScanService(
         bool incrementalPrices,
         int? historyYears,
         string? exportPath,
+        bool sendAlerts,
         CancellationToken cancellationToken)
     {
         var scanRun = new ScanRun
@@ -56,14 +58,20 @@ public sealed class NightlyScanService(
             var indicatorsCalculated = await indicatorCalculationService.CalculateAsync(cancellationToken);
             summary["indicatorsCalculated"] = indicatorsCalculated;
 
-            var signalsEvaluated = await signalEvaluationService.EvaluateAsync(cancellationToken);
+            var signalsEvaluated = await signalEvaluationService.EvaluateAsync(scanRun.Id, cancellationToken);
             summary["signalsEvaluated"] = signalsEvaluated;
 
-            var scoresCalculated = await compositeScoringService.CalculateAsync(cancellationToken);
+            var scoresCalculated = await compositeScoringService.CalculateAsync(scanRun.Id, cancellationToken);
             summary["scoresCalculated"] = scoresCalculated;
 
-            var breadthCalculated = await breadthCalculationService.CalculateAsync(cancellationToken);
+            var breadthCalculated = await breadthCalculationService.CalculateAsync(scanRun.Id, cancellationToken);
             summary["breadthCalculated"] = breadthCalculated;
+
+            if (sendAlerts)
+            {
+                var alertsSent = await alertService.ProcessTransitionsAsync(scanRun.Id, cancellationToken);
+                summary["alertsSent"] = alertsSent;
+            }
 
             if (!string.IsNullOrWhiteSpace(exportPath))
             {

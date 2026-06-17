@@ -76,6 +76,7 @@ public sealed class SignalResultConfiguration : IEntityTypeConfiguration<SignalR
         builder.Property(x => x.ValuesJson).HasColumnName("values").HasColumnType("jsonb");
         builder.HasIndex(x => new { x.ScanDateUtc, x.TickerId, x.SignalDefinitionId }).IsUnique();
         builder.HasIndex(x => new { x.ScanDateUtc, x.SignalDefinitionId, x.IsMatch });
+        builder.HasIndex(x => new { x.ScanRunId, x.TickerId, x.SignalDefinitionId });
     }
 }
 
@@ -87,6 +88,7 @@ public sealed class ScanScoreConfiguration : IEntityTypeConfiguration<ScanScore>
         builder.HasKey(x => x.Id);
         builder.Property(x => x.ComponentsJson).HasColumnName("components").HasColumnType("jsonb");
         builder.HasIndex(x => new { x.ScanDateUtc, x.TickerId, x.ScoreCode }).IsUnique();
+        builder.HasIndex(x => new { x.ScanRunId, x.TickerId, x.ScoreCode });
     }
 }
 
@@ -96,6 +98,7 @@ public sealed class BreadthSnapshotConfiguration : IEntityTypeConfiguration<Brea
     {
         builder.ToTable("breadth_snapshot");
         builder.HasKey(x => x.Id);
+        builder.HasIndex(x => new { x.ScanRunId, x.MetricCode });
     }
 }
 
@@ -121,5 +124,35 @@ public sealed class TickerOperationFailureConfiguration : IEntityTypeConfigurati
         builder.Property(x => x.Operation).IsRequired();
         builder.Property(x => x.ErrorMessage).IsRequired();
         builder.HasIndex(x => new { x.ScanRunId, x.Symbol, x.Operation });
+    }
+}
+
+public sealed class AlertEventConfiguration : IEntityTypeConfiguration<AlertEvent>
+{
+    public void Configure(EntityTypeBuilder<AlertEvent> builder)
+    {
+        builder.ToTable("alert_event");
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.EventType).IsRequired();
+        builder.Property(x => x.SubjectType).IsRequired();
+        builder.Property(x => x.SubjectKey).IsRequired();
+        builder.Property(x => x.Title).IsRequired();
+        builder.Property(x => x.Message).IsRequired();
+        builder.Property(x => x.DetailsJson).HasColumnName("details").HasColumnType("jsonb");
+        builder.HasIndex(x => x.DetectedUtc);
+        builder.HasIndex(x => new { x.EventType, x.SubjectType, x.SubjectKey, x.DetectedUtc });
+    }
+}
+
+public sealed class AlertDeliveryConfiguration : IEntityTypeConfiguration<AlertDelivery>
+{
+    public void Configure(EntityTypeBuilder<AlertDelivery> builder)
+    {
+        builder.ToTable("alert_delivery");
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.Channel).IsRequired();
+        builder.Property(x => x.Destination).IsRequired();
+        builder.Property(x => x.Status).IsRequired();
+        builder.HasIndex(x => new { x.AlertEventId, x.Channel });
     }
 }

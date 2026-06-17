@@ -3,6 +3,7 @@ namespace TechnicalScanner.Domain.Entities;
 public class BreadthSnapshot
 {
     public long Id { get; set; }
+    public long? ScanRunId { get; set; }
     public DateTimeOffset ScanDateUtc { get; set; }
     public required string UniverseName { get; set; }
     public string? Country { get; set; }
@@ -16,4 +17,6 @@ public class BreadthSnapshot
     public decimal? MedianValue { get; set; }
     public decimal? AverageValue { get; set; }
     public DateTimeOffset CreatedUtc { get; set; } = DateTimeOffset.UtcNow;
+
+    public ScanRun? ScanRun { get; set; }
 }

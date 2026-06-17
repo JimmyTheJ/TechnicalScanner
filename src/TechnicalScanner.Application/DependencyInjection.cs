@@ -28,6 +28,7 @@ public static class DependencyInjection
         services.AddScoped<CompositeScoringService>();
         services.AddScoped<BreadthCalculationService>();
         services.AddScoped<CsvExportService>();
+        services.AddScoped<AlertService>();
         services.AddScoped<NightlyScanService>();
         services.AddScoped<TickerQueryService>();
         services.AddScoped<IndicatorQueryService>();
@@ -35,6 +36,7 @@ public static class DependencyInjection
         services.AddScoped<ScreenerQueryService>();
         services.AddScoped<BreadthQueryService>();
         services.AddScoped<ScannerQueryService>();
+        services.AddScoped<AlertQueryService>();
         return services;
     }
 }

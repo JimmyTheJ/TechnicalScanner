@@ -3,6 +3,7 @@ namespace TechnicalScanner.Domain.Entities;
 public class SignalResult
 {
     public long Id { get; set; }
+    public long? ScanRunId { get; set; }
     public DateTimeOffset ScanDateUtc { get; set; }
     public long TickerId { get; set; }
     public long SignalDefinitionId { get; set; }
@@ -13,4 +14,5 @@ public class SignalResult
 
     public Ticker Ticker { get; set; } = null!;
     public SignalDefinition SignalDefinition { get; set; } = null!;
+    public ScanRun? ScanRun { get; set; }
 }

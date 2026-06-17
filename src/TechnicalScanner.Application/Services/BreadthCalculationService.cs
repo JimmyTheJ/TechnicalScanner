@@ -19,7 +19,7 @@ public sealed class BreadthCalculationService(
         ("BB_20_2_D_BELOW_LOWER_PCT", "BB_20_2_D", "status", "=", "CloseBelowLowerBand")
     ];
 
-    public async Task<int> CalculateAsync(CancellationToken cancellationToken)
+    public async Task<int> CalculateAsync(long? scanRunId = null, CancellationToken cancellationToken = default)
     {
         var scanDate = DateTimeOffset.UtcNow;
         var tickers = dbContext.Tickers.Where(t => t.IsActive).ToList();
@@ -42,6 +42,7 @@ public sealed class BreadthCalculationService(
 
             dbContext.Add(new BreadthSnapshot
             {
+                ScanRunId = scanRunId,
                 ScanDateUtc = scanDate,
                 UniverseName = "ALL",
                 MetricCode = metric.MetricCode,

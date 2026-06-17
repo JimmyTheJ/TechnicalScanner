@@ -9,7 +9,7 @@ public sealed class CompositeScoringService(
     ITechnicalScannerDbContext dbContext,
     ILogger<CompositeScoringService> logger)
 {
-    public async Task<int> CalculateAsync(CancellationToken cancellationToken)
+    public async Task<int> CalculateAsync(long? scanRunId = null, CancellationToken cancellationToken = default)
     {
         var scanDate = DateTimeOffset.UtcNow;
         var tickers = dbContext.Tickers.Where(t => t.IsActive).ToList();
@@ -66,6 +66,7 @@ public sealed class CompositeScoringService(
             {
                 dbContext.Add(new ScanScore
                 {
+                    ScanRunId = scanRunId,
                     ScanDateUtc = scanDate,
                     TickerId = ticker.Id,
                     ScoreCode = "DEEP_PULLBACK",
@@ -75,6 +76,7 @@ public sealed class CompositeScoringService(
             }
             else
             {
+                existing.ScanRunId = scanRunId;
                 existing.Score = score;
                 existing.ComponentsJson = JsonSerializer.Serialize(components);
             }
