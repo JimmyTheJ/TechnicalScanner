@@ -72,11 +72,23 @@ Swagger UI is available in Development at `/swagger`.
 
 ## Configuration
 
-Connection string in `appsettings.json`:
+Connection string and market data settings in `appsettings.json`:
 
 ```json
 "ConnectionStrings": {
   "TechnicalScanner": "Host=localhost;Port=5432;Database=technical_scanner;Username=postgres;Password=postgres"
+},
+"MarketData": {
+  "Provider": "YahooFinance",
+  "RequestsPerSecond": 2,
+  "MaxRetries": 3,
+  "RetryDelaySeconds": 2,
+  "InitialHistoryYears": 10,
+  "Universe": {
+    "IncludeUs": true,
+    "IncludeCanada": true,
+    "IncludeEtfs": true
+  }
 }
 ```
 
@@ -90,7 +102,28 @@ Connection string in `appsettings.json`:
 
 ## Market data
 
-Phase 1 uses `SeedMarketDataProvider` with deterministic synthetic daily candles for 10 liquid US/CA symbols (AAPL, MSFT, NVDA, TSLA, SPY, QQQ, SHOP, RY, TD, XIU). Replace with a Yahoo Finance or Polygon.io provider for production.
+Phase 4 uses **Yahoo Finance** for historical candles and public US/CA universe sources:
+
+- US: NASDAQ Trader symbol directories (NYSE, NASDAQ, AMEX, etc.)
+- Canada: TSX / TSXV company directories
+
+Set `"MarketData": { "Provider": "Seed" }` in `appsettings.json` to use the original 10-ticker synthetic provider for local/dev testing.
+
+### Rate limiting and retries
+
+Market data calls are wrapped with configurable rate limiting and transient retries (`RequestsPerSecond`, `MaxRetries`, `RetryDelaySeconds` in `appsettings.json`).
+
+### Incremental price updates
+
+`update-prices` is incremental by default (fetches only new candles since the last stored date, with a short lookback for corrections). Use `--full` to reload the full history window.
+
+### Nightly full-market scan
+
+```bash
+dotnet run --project src/TechnicalScanner.Worker -- run-nightly-scan --years 10 --export ./exports/generic_indicator_latest.csv
+```
+
+This runs: import tickers → incremental prices → aggregate candles → indicators → signals → scores → breadth → optional CSV export. Failures are logged per ticker in `ticker_operation_failure` and summarized in `scan_run`.
 
 ## Tests
 
@@ -105,7 +138,7 @@ dotnet test
 | 1 — Generic vertical slice | Scaffolded |
 | 2 — Signal engine | Scaffolded |
 | 3 — Composite scoring | Scaffolded |
-| 4 — Full universe scanner | Planned |
+| 4 — Full universe scanner | Implemented |
 | 5 — API | Skeleton |
 | 6 — Dashboard | Planned |
 | 7 — Alerts | Planned |

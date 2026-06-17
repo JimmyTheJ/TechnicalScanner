@@ -8,12 +8,18 @@ namespace TechnicalScanner.Application.Services;
 public sealed class PriceImportService(
     IMarketDataProvider marketDataProvider,
     ITechnicalScannerDbContext dbContext,
+    ITickerOperationLogger operationLogger,
     ILogger<PriceImportService> logger)
 {
-    public async Task<int> UpdatePricesAsync(int years, CancellationToken cancellationToken)
+    private const int LookbackDaysForCorrections = 5;
+
+    public Task<int> UpdatePricesAsync(int years, CancellationToken cancellationToken)
+        => UpdatePricesAsync(years, incremental: false, cancellationToken);
+
+    public async Task<int> UpdatePricesAsync(int years, bool incremental, CancellationToken cancellationToken)
     {
         var endDate = DateOnly.FromDateTime(DateTime.UtcNow.Date);
-        var startDate = endDate.AddYears(-years);
+        var defaultStartDate = endDate.AddYears(-years);
         var tickers = dbContext.Tickers.Where(t => t.IsActive).ToList();
         var updated = 0;
 
@@ -23,6 +29,12 @@ public sealed class PriceImportService(
 
             try
             {
+                var startDate = ResolveStartDate(ticker.Id, defaultStartDate, incremental);
+                if (startDate > endDate)
+                {
+                    continue;
+                }
+
                 var candles = await marketDataProvider.GetHistoricalCandlesAsync(
                     ticker.Symbol,
                     ticker.Exchange,
@@ -73,11 +85,43 @@ public sealed class PriceImportService(
             }
             catch (Exception ex)
             {
-                logger.LogWarning(ex, "Failed to import daily candles for {Symbol}.", ticker.Symbol);
+                await operationLogger.LogFailureAsync(
+                    ticker.Symbol,
+                    "update-prices",
+                    ex.Message,
+                    ticker.Id,
+                    cancellationToken);
             }
         }
 
-        logger.LogInformation("Updated daily prices for {Count}/{Total} tickers.", updated, tickers.Count);
+        logger.LogInformation(
+            "Updated daily prices for {Count}/{Total} tickers (incremental={Incremental}).",
+            updated,
+            tickers.Count,
+            incremental);
+
         return updated;
+    }
+
+    private DateOnly ResolveStartDate(long tickerId, DateOnly defaultStartDate, bool incremental)
+    {
+        if (!incremental)
+        {
+            return defaultStartDate;
+        }
+
+        var latestCandleDate = dbContext.PriceCandles
+            .Where(p => p.TickerId == tickerId && p.Timeframe == Timeframe.D.ToCode())
+            .OrderByDescending(p => p.CandleDate)
+            .Select(p => (DateOnly?)p.CandleDate)
+            .FirstOrDefault();
+
+        if (latestCandleDate is null)
+        {
+            return defaultStartDate;
+        }
+
+        var incrementalStart = latestCandleDate.Value.AddDays(-LookbackDaysForCorrections);
+        return incrementalStart > defaultStartDate ? incrementalStart : defaultStartDate;
     }
 }

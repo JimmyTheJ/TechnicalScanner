@@ -26,7 +26,9 @@ switch (command)
     case "update-prices":
     {
         var years = ParseIntOption(args, "--years", 10);
-        await services.GetRequiredService<PriceImportService>().UpdatePricesAsync(years, CancellationToken.None);
+        var incremental = !args.Contains("--full");
+        await services.GetRequiredService<PriceImportService>()
+            .UpdatePricesAsync(years, incremental, CancellationToken.None);
         break;
     }
     case "aggregate-candles":
@@ -57,6 +59,16 @@ switch (command)
         Console.WriteLine($"Exported CSV to {path}");
         break;
     }
+    case "run-nightly-scan":
+    {
+        var years = ParseIntOption(args, "--years", 10);
+        var incremental = !args.Contains("--full");
+        var exportPath = ParseStringOption(args, "--export", "./exports/generic_indicator_latest.csv");
+        var scan = await services.GetRequiredService<NightlyScanService>()
+            .RunAsync(incremental, years, exportPath, CancellationToken.None);
+        Console.WriteLine($"Nightly scan {scan.Id} completed with status {scan.Status}.");
+        break;
+    }
     default:
         Console.WriteLine($"Unknown command: {command}");
         PrintUsage();
@@ -71,13 +83,14 @@ static void PrintUsage()
 
         Commands:
           import-tickers
-          update-prices --years 10
+          update-prices --years 10 [--full]
           aggregate-candles --timeframes W,M
           calculate-indicators
           evaluate-signals
           calculate-scores
           calculate-breadth
           export-csv ./exports/generic_indicator_latest.csv
+          run-nightly-scan --years 10 [--full] [--export ./exports/generic_indicator_latest.csv]
         """);
 }
 
@@ -87,6 +100,17 @@ static int ParseIntOption(string[] args, string optionName, int defaultValue)
     if (index >= 0 && index + 1 < args.Length && int.TryParse(args[index + 1], out var value))
     {
         return value;
+    }
+
+    return defaultValue;
+}
+
+static string? ParseStringOption(string[] args, string optionName, string? defaultValue)
+{
+    var index = Array.IndexOf(args, optionName);
+    if (index >= 0 && index + 1 < args.Length)
+    {
+        return args[index + 1];
     }
 
     return defaultValue;

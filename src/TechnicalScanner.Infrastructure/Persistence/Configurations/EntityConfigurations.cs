@@ -98,3 +98,28 @@ public sealed class BreadthSnapshotConfiguration : IEntityTypeConfiguration<Brea
         builder.HasKey(x => x.Id);
     }
 }
+
+public sealed class ScanRunConfiguration : IEntityTypeConfiguration<ScanRun>
+{
+    public void Configure(EntityTypeBuilder<ScanRun> builder)
+    {
+        builder.ToTable("scan_run");
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.Status).IsRequired();
+        builder.Property(x => x.SummaryJson).HasColumnName("summary").HasColumnType("jsonb");
+        builder.HasIndex(x => x.StartedUtc);
+    }
+}
+
+public sealed class TickerOperationFailureConfiguration : IEntityTypeConfiguration<TickerOperationFailure>
+{
+    public void Configure(EntityTypeBuilder<TickerOperationFailure> builder)
+    {
+        builder.ToTable("ticker_operation_failure");
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.Symbol).IsRequired();
+        builder.Property(x => x.Operation).IsRequired();
+        builder.Property(x => x.ErrorMessage).IsRequired();
+        builder.HasIndex(x => new { x.ScanRunId, x.Symbol, x.Operation });
+    }
+}

@@ -1,0 +1,16 @@
+<Solution>
+  <Folder Name="/_SolutionFiles/">
+    <File Path="../Directory.Build.props" />
+    <File Path="../Directory.Packages.props" />
+  </Folder>
+  <Folder Name="/_Tests/">
+    <Project Path="TechnicalScanner.Tests/TechnicalScanner.Tests.csproj" />
+  </Folder>
+  <Folder Name="/Solution/">
+    <Project Path="TechnicalScanner.Api/TechnicalScanner.Api.csproj" />
+    <Project Path="TechnicalScanner.Application/TechnicalScanner.Application.csproj" />
+    <Project Path="TechnicalScanner.Domain/TechnicalScanner.Domain.csproj" />
+    <Project Path="TechnicalScanner.Infrastructure/TechnicalScanner.Infrastructure.csproj" />
+    <Project Path="TechnicalScanner.Worker/TechnicalScanner.Worker.csproj" />
+  </Folder>
+</Solution>

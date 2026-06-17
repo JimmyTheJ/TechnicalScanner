@@ -230,6 +230,44 @@ namespace TechnicalScanner.Infrastructure.Migrations
                     b.ToTable("price_candle", (string)null);
                 });
 
+            modelBuilder.Entity("TechnicalScanner.Domain.Entities.ScanRun", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTimeOffset?>("CompletedUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("CreatedUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("StartedUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("SummaryJson")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("summary");
+
+                    b.Property<int>("TickersFailed")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TickersProcessed")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("StartedUtc");
+
+                    b.ToTable("scan_run", (string)null);
+                });
+
             modelBuilder.Entity("TechnicalScanner.Domain.Entities.ScanScore", b =>
                 {
                     b.Property<long>("Id")
@@ -420,6 +458,44 @@ namespace TechnicalScanner.Infrastructure.Migrations
                     b.ToTable("ticker", (string)null);
                 });
 
+            modelBuilder.Entity("TechnicalScanner.Domain.Entities.TickerOperationFailure", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("ErrorMessage")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset>("OccurredUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Operation")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<long?>("ScanRunId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Symbol")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<long?>("TickerId")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TickerId");
+
+                    b.HasIndex("ScanRunId", "Symbol", "Operation");
+
+                    b.ToTable("ticker_operation_failure", (string)null);
+                });
+
             modelBuilder.Entity("TechnicalScanner.Domain.Entities.IndicatorValue", b =>
                 {
                     b.HasOne("TechnicalScanner.Domain.Entities.IndicatorDefinition", "IndicatorDefinition")
@@ -489,11 +565,31 @@ namespace TechnicalScanner.Infrastructure.Migrations
                     b.Navigation("Ticker");
                 });
 
+            modelBuilder.Entity("TechnicalScanner.Domain.Entities.TickerOperationFailure", b =>
+                {
+                    b.HasOne("TechnicalScanner.Domain.Entities.ScanRun", "ScanRun")
+                        .WithMany("Failures")
+                        .HasForeignKey("ScanRunId");
+
+                    b.HasOne("TechnicalScanner.Domain.Entities.Ticker", "Ticker")
+                        .WithMany()
+                        .HasForeignKey("TickerId");
+
+                    b.Navigation("ScanRun");
+
+                    b.Navigation("Ticker");
+                });
+
             modelBuilder.Entity("TechnicalScanner.Domain.Entities.IndicatorDefinition", b =>
                 {
                     b.Navigation("IndicatorValues");
 
                     b.Navigation("SignalDefinitions");
+                });
+
+            modelBuilder.Entity("TechnicalScanner.Domain.Entities.ScanRun", b =>
+                {
+                    b.Navigation("Failures");
                 });
 
             modelBuilder.Entity("TechnicalScanner.Domain.Entities.SignalDefinition", b =>

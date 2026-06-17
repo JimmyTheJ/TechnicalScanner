@@ -18,6 +18,7 @@ public static class DependencyInjection
         services.AddSingleton<IIndicatorCalculator, BollingerBandsIndicatorCalculator>();
         services.AddSingleton<IndicatorCalculatorRegistry>();
         services.AddScoped<SignalRuleEvaluator>();
+        services.AddScoped<ITickerOperationLogger, TickerOperationLogger>();
         services.AddScoped<TickerImportService>();
         services.AddScoped<PriceImportService>();
         services.AddScoped<CandleAggregationService>();
@@ -26,6 +27,7 @@ public static class DependencyInjection
         services.AddScoped<CompositeScoringService>();
         services.AddScoped<BreadthCalculationService>();
         services.AddScoped<CsvExportService>();
+        services.AddScoped<NightlyScanService>();
         return services;
     }
 }

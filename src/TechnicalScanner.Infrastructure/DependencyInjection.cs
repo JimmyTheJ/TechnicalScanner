@@ -2,10 +2,13 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using TechnicalScanner.Application;
 using TechnicalScanner.Application.Abstractions;
+using TechnicalScanner.Application.Options;
 using TechnicalScanner.Domain.Entities;
 using TechnicalScanner.Infrastructure.MarketData;
+using TechnicalScanner.Infrastructure.MarketData.Universe;
 using TechnicalScanner.Infrastructure.Persistence;
 
 namespace TechnicalScanner.Infrastructure;
@@ -17,11 +20,44 @@ public static class DependencyInjection
         var connectionString = configuration.GetConnectionString("TechnicalScanner")
             ?? "Host=localhost;Port=5432;Database=technical_scanner;Username=postgres;Password=postgres";
 
+        services.Configure<MarketDataOptions>(configuration.GetSection(MarketDataOptions.SectionName));
+
         services.AddDbContext<TechnicalScannerDbContext>(options =>
             options.UseNpgsql(connectionString));
 
         services.AddScoped<ITechnicalScannerDbContext>(sp => sp.GetRequiredService<TechnicalScannerDbContext>());
-        services.AddSingleton<IMarketDataProvider, SeedMarketDataProvider>();
+
+        services.AddHttpClient<UsTickerUniverseLoader>(client =>
+        {
+            client.Timeout = TimeSpan.FromMinutes(2);
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("TechnicalScanner/1.0");
+        });
+        services.AddHttpClient<CanadianTickerUniverseLoader>(client =>
+        {
+            client.Timeout = TimeSpan.FromMinutes(2);
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("TechnicalScanner/1.0");
+        });
+        services.AddHttpClient<YahooFinanceMarketDataProvider>(client =>
+        {
+            client.Timeout = TimeSpan.FromMinutes(2);
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("TechnicalScanner/1.0");
+        });
+
+        services.AddSingleton<SeedMarketDataProvider>();
+        services.AddSingleton<YahooFinanceMarketDataProvider>();
+        services.AddSingleton<IMarketDataProvider>(sp =>
+        {
+            var options = sp.GetRequiredService<IOptions<MarketDataOptions>>().Value;
+            IMarketDataProvider inner = options.Provider.Equals("Seed", StringComparison.OrdinalIgnoreCase)
+                ? sp.GetRequiredService<SeedMarketDataProvider>()
+                : sp.GetRequiredService<YahooFinanceMarketDataProvider>();
+
+            return new ResilientRateLimitedMarketDataProvider(
+                inner,
+                sp.GetRequiredService<IOptions<MarketDataOptions>>(),
+                sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<ResilientRateLimitedMarketDataProvider>>());
+        });
+
         services.AddApplication();
 
         return services;
