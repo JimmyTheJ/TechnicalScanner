@@ -1,31 +1,31 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using TechnicalScanner.Application.Abstractions;
+using TechnicalScanner.Application.Services.Queries;
+using TechnicalScanner.Domain.Entities;
 
 namespace TechnicalScanner.Api.Controllers;
 
 [ApiController]
 [Route("api/breadth")]
-public sealed class BreadthController(ITechnicalScannerDbContext dbContext) : ControllerBase
+public sealed class BreadthController(BreadthQueryService breadthQueryService) : ControllerBase
 {
     [HttpGet("latest")]
-    public async Task<IActionResult> GetLatest(CancellationToken cancellationToken)
-    {
-        var latestScan = await dbContext.BreadthSnapshots
-            .OrderByDescending(b => b.ScanDateUtc)
-            .Select(b => b.ScanDateUtc)
-            .FirstOrDefaultAsync(cancellationToken);
+    [ProducesResponseType(typeof(IReadOnlyList<BreadthSnapshot>), StatusCodes.Status200OK)]
+    public IActionResult GetLatest()
+        => Ok(breadthQueryService.GetLatest());
 
-        if (latestScan == default)
+    [HttpGet("history")]
+    [ProducesResponseType(typeof(IReadOnlyList<BreadthSnapshot>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public IActionResult GetHistory(
+        [FromQuery] string metricCode,
+        [FromQuery] DateTimeOffset? from,
+        [FromQuery] DateTimeOffset? to)
+    {
+        if (string.IsNullOrWhiteSpace(metricCode))
         {
-            return Ok(Array.Empty<object>());
+            return BadRequest(new { error = "metricCode is required." });
         }
 
-        var snapshots = await dbContext.BreadthSnapshots
-            .Where(b => b.ScanDateUtc == latestScan)
-            .OrderBy(b => b.MetricCode)
-            .ToListAsync(cancellationToken);
-
-        return Ok(snapshots);
+        return Ok(breadthQueryService.GetHistory(metricCode, from, to));
     }
 }

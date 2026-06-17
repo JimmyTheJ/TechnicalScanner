@@ -1,6 +1,24 @@
-@TechnicalScanner.Api_HostAddress = http://localhost:5223
+# Technical Scanner API examples
 
-GET {{TechnicalScanner.Api_HostAddress}}/weatherforecast/
-Accept: application/json
+@TechnicalScanner.Api_HostAddress = http://localhost:5289
 
-###
+### Latest scan summary
+GET {{TechnicalScanner.Api_HostAddress}}/api/scanner/latest
+
+### Screener
+GET {{TechnicalScanner.Api_HostAddress}}/api/scanner/screener?country=US&signal=BMSB_BELOW&sort=compositeScoreDesc&page=1&pageSize=50
+
+### Tickers (paginated)
+GET {{TechnicalScanner.Api_HostAddress}}/api/tickers?country=US&page=1&pageSize=25&sort=symbolAsc
+
+### Indicator history
+GET {{TechnicalScanner.Api_HostAddress}}/api/indicators/history?ticker=AAPL&indicatorCode=RSI_14_W
+
+### Breadth history
+GET {{TechnicalScanner.Api_HostAddress}}/api/breadth/history?metricCode=SMA_200_D_ABOVE_PCT
+
+### Signal matches
+GET {{TechnicalScanner.Api_HostAddress}}/api/scanner/signals?signal=RSI_D_OVERSOLD&country=US
+
+### Composite scores
+GET {{TechnicalScanner.Api_HostAddress}}/api/scanner/scores?scoreCode=DEEP_PULLBACK&sort=scoreDesc

@@ -1,44 +1,71 @@
+using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using TechnicalScanner.Application.Abstractions;
+using TechnicalScanner.Application.Models.Queries;
+using TechnicalScanner.Application.Services.Queries;
+using TechnicalScanner.Domain.Entities;
 
 namespace TechnicalScanner.Api.Controllers;
 
 [ApiController]
 [Route("api/indicators")]
-public sealed class IndicatorsController(ITechnicalScannerDbContext dbContext) : ControllerBase
+public sealed class IndicatorsController(IndicatorQueryService indicatorQueryService) : ControllerBase
 {
     [HttpGet("definitions")]
-    public async Task<IActionResult> GetDefinitions(CancellationToken cancellationToken)
-    {
-        var definitions = await dbContext.IndicatorDefinitions
-            .Where(d => d.IsActive)
-            .OrderBy(d => d.Code)
-            .ToListAsync(cancellationToken);
+    [ProducesResponseType(typeof(IReadOnlyList<IndicatorDefinition>), StatusCodes.Status200OK)]
+    public IActionResult GetDefinitions()
+        => Ok(indicatorQueryService.GetDefinitions());
 
-        return Ok(definitions);
+    [HttpPost("definitions")]
+    [ProducesResponseType(typeof(IndicatorDefinition), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> CreateDefinition(
+        [FromBody] CreateIndicatorDefinitionRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var definition = indicatorQueryService.CreateDefinition(request);
+            await indicatorQueryService.SaveDefinitionAsync(cancellationToken);
+            return CreatedAtAction(nameof(GetDefinitions), new { code = definition.Code }, definition);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new { error = ex.Message });
+        }
+        catch (JsonException)
+        {
+            return BadRequest(new { error = "ParametersJson must be valid JSON." });
+        }
     }
 
     [HttpGet("latest")]
-    public async Task<IActionResult> GetLatest([FromQuery] string ticker, CancellationToken cancellationToken)
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public IActionResult GetLatest([FromQuery] string ticker)
     {
-        var values = await dbContext.IndicatorValues
-            .Join(dbContext.Tickers, v => v.TickerId, t => t.Id, (v, t) => new { v, t })
-            .Join(dbContext.IndicatorDefinitions, x => x.v.IndicatorDefinitionId, d => d.Id, (x, d) => new { x.v, x.t, d })
-            .Where(x => x.t.Symbol == ticker)
-            .GroupBy(x => x.d.Code)
-            .Select(g => g.OrderByDescending(x => x.v.CandleDate).First())
-            .Select(x => new
-            {
-                x.d.Code,
-                x.v.CandleDate,
-                x.v.PrimaryValue,
-                x.v.SecondaryValue,
-                x.v.TertiaryValue,
-                x.v.ValuesJson
-            })
-            .ToListAsync(cancellationToken);
+        if (string.IsNullOrWhiteSpace(ticker))
+        {
+            return BadRequest(new { error = "ticker is required." });
+        }
 
-        return Ok(values);
+        return Ok(indicatorQueryService.GetLatestForTicker(ticker));
+    }
+
+    [HttpGet("history")]
+    [ProducesResponseType(typeof(IReadOnlyList<IndicatorHistoryPointDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public IActionResult GetHistory(
+        [FromQuery] string ticker,
+        [FromQuery] string indicatorCode,
+        [FromQuery] DateOnly? from,
+        [FromQuery] DateOnly? to)
+    {
+        if (string.IsNullOrWhiteSpace(ticker) || string.IsNullOrWhiteSpace(indicatorCode))
+        {
+            return BadRequest(new { error = "ticker and indicatorCode are required." });
+        }
+
+        return Ok(indicatorQueryService.GetHistory(ticker, indicatorCode, from, to));
     }
 }

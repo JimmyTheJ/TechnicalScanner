@@ -1,54 +1,27 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using TechnicalScanner.Application.Abstractions;
+using TechnicalScanner.Application.Models.Queries;
+using TechnicalScanner.Application.Services.Queries;
 
 namespace TechnicalScanner.Api.Controllers;
 
 [ApiController]
 [Route("api/tickers")]
-public sealed class TickersController(ITechnicalScannerDbContext dbContext) : ControllerBase
+public sealed class TickersController(TickerQueryService tickerQueryService) : ControllerBase
 {
     [HttpGet]
-    public async Task<IActionResult> GetTickers(CancellationToken cancellationToken)
+    [ProducesResponseType(typeof(PagedResult<TickerListItemDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetTickers([FromQuery] TickerListQuery query, CancellationToken cancellationToken)
     {
-        var tickers = await dbContext.Tickers
-            .OrderBy(t => t.Symbol)
-            .Select(t => new
-            {
-                t.Id,
-                t.Symbol,
-                t.Exchange,
-                t.Country,
-                t.CompanyName,
-                t.Sector,
-                t.Industry,
-                t.MarketCap,
-                t.IsEtf
-            })
-            .ToListAsync(cancellationToken);
-
-        return Ok(tickers);
+        var result = await tickerQueryService.GetTickersAsync(query, cancellationToken);
+        return Ok(result);
     }
 
     [HttpGet("{symbol}")]
-    public async Task<IActionResult> GetTicker(string symbol, CancellationToken cancellationToken)
+    [ProducesResponseType(typeof(TickerListItemDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public IActionResult GetTicker(string symbol)
     {
-        var ticker = await dbContext.Tickers
-            .Where(t => t.Symbol == symbol)
-            .Select(t => new
-            {
-                t.Id,
-                t.Symbol,
-                t.Exchange,
-                t.Country,
-                t.CompanyName,
-                t.Sector,
-                t.Industry,
-                t.MarketCap,
-                t.IsEtf
-            })
-            .FirstOrDefaultAsync(cancellationToken);
-
+        var ticker = tickerQueryService.GetTickerBySymbol(symbol);
         return ticker is null ? NotFound() : Ok(ticker);
     }
 }

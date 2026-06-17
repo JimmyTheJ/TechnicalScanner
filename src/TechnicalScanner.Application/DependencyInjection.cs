@@ -3,6 +3,7 @@ using TechnicalScanner.Application.Abstractions;
 using TechnicalScanner.Application.Indicators;
 using TechnicalScanner.Application.Indicators.Calculators;
 using TechnicalScanner.Application.Services;
+using TechnicalScanner.Application.Services.Queries;
 using TechnicalScanner.Application.Signals;
 
 namespace TechnicalScanner.Application;
@@ -28,6 +29,12 @@ public static class DependencyInjection
         services.AddScoped<BreadthCalculationService>();
         services.AddScoped<CsvExportService>();
         services.AddScoped<NightlyScanService>();
+        services.AddScoped<TickerQueryService>();
+        services.AddScoped<IndicatorQueryService>();
+        services.AddScoped<SignalQueryService>();
+        services.AddScoped<ScreenerQueryService>();
+        services.AddScoped<BreadthQueryService>();
+        services.AddScoped<ScannerQueryService>();
         return services;
     }
 }

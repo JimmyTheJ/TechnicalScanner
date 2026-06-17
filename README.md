@@ -68,7 +68,32 @@ dotnet run --project src/TechnicalScanner.Worker -- calculate-breadth
 dotnet run --project src/TechnicalScanner.Api
 ```
 
-Swagger UI is available in Development at `/swagger`.
+Swagger UI is available at `/swagger`.
+
+#### Key endpoints
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/tickers` | Paginated ticker list with filters |
+| `GET /api/tickers/{symbol}` | Single ticker detail |
+| `GET /api/indicators/definitions` | Active indicator definitions |
+| `POST /api/indicators/definitions` | Create indicator definition |
+| `GET /api/indicators/latest?ticker=AAPL` | Latest indicators for a ticker |
+| `GET /api/indicators/history?ticker=AAPL&indicatorCode=RSI_14_W` | Indicator history |
+| `GET /api/signals/definitions` | Active signal definitions |
+| `POST /api/signals/definitions` | Create signal definition |
+| `GET /api/scanner/latest` | Latest scan summary + breadth |
+| `GET /api/scanner/screener` | Filterable/sortable screener |
+| `GET /api/scanner/signals` | Matched signals (paginated) |
+| `GET /api/scanner/scores` | Composite scores (paginated) |
+| `GET /api/breadth/latest` | Latest breadth metrics |
+| `GET /api/breadth/history?metricCode=...` | Breadth metric history |
+
+Example screener query:
+
+```http
+GET /api/scanner/screener?country=US&signal=BMSB_BELOW&minCompositeScore=3&sort=compositeScoreDesc&page=1&pageSize=50
+```
 
 ## Configuration
 
@@ -139,7 +164,7 @@ dotnet test
 | 2 — Signal engine | Scaffolded |
 | 3 — Composite scoring | Scaffolded |
 | 4 — Full universe scanner | Implemented |
-| 5 — API | Skeleton |
+| 5 — API | Implemented |
 | 6 — Dashboard | Planned |
 | 7 — Alerts | Planned |
 
