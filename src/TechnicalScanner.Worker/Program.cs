@@ -1,8 +1,10 @@
 using TechnicalScanner.Application.Services;
 using TechnicalScanner.Domain.Enums;
 using TechnicalScanner.Infrastructure;
+using TechnicalScanner.Infrastructure.Configuration;
 
 var builder = Host.CreateApplicationBuilder(args);
+builder.Configuration.AddLocalAppSettings();
 builder.Services.AddInfrastructure(builder.Configuration);
 using var host = builder.Build();
 
@@ -85,6 +87,13 @@ switch (command)
         Console.WriteLine($"Processed {sent} alert transitions for scan {scanRunId}.");
         break;
     }
+    case "test-alerts":
+    {
+        await services.GetRequiredService<AlertService>()
+            .SendTestNotificationAsync(CancellationToken.None);
+        Console.WriteLine("Test alert dispatched to configured channels.");
+        break;
+    }
     default:
         Console.WriteLine($"Unknown command: {command}");
         PrintUsage();
@@ -107,6 +116,7 @@ static void PrintUsage()
           calculate-breadth
           export-csv ./exports/generic_indicator_latest.csv
           send-alerts --scan-run 1
+          test-alerts
           run-nightly-scan --years 10 [--full] [--export ./exports/generic_indicator_latest.csv] [--no-alerts]
         """);
 }

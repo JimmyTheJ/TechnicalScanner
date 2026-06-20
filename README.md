@@ -187,7 +187,65 @@ Alerts detect **transitions** between consecutive completed scans:
 - Composite score crossing a threshold (default `DEEP_PULLBACK` ≥ 4)
 - Market breadth crossing configured levels (default BMSB above-band % below 20% or above 50%)
 
-Enable in `appsettings.json`:
+Email, webhook, Telegram, Discord, and Slack channels are supported. **Email via SMTP is already implemented** — you only need configuration.
+
+### Email with PurelyMail (recommended)
+
+1. Create a sender address in PurelyMail (e.g. `scanner@yourdomain.com`).
+2. If you use 2FA, generate an **app password** in PurelyMail.
+3. Copy the example local settings file:
+
+```bash
+cp src/TechnicalScanner.Worker/appsettings.Local.json.example src/TechnicalScanner.Worker/appsettings.Local.json
+```
+
+4. Edit `appsettings.Local.json` with your PurelyMail credentials:
+
+```json
+{
+  "Alerts": {
+    "Enabled": true,
+    "Channels": {
+      "Email": {
+        "Enabled": true,
+        "SmtpHost": "smtp.purelymail.com",
+        "SmtpPort": 587,
+        "UseSsl": true,
+        "Username": "scanner@yourdomain.com",
+        "Password": "your-app-password",
+        "FromAddress": "scanner@yourdomain.com",
+        "ToAddress": "you@yourdomain.com"
+      }
+    }
+  }
+}
+```
+
+`appsettings.Local.json` is gitignored and loaded automatically by the Worker and API.
+
+PurelyMail SMTP: `smtp.purelymail.com`, port **587** (STARTTLS) or **465** (SSL/TLS). Use your **full email address** as the username.
+
+5. Send a test email (no scan required):
+
+```bash
+dotnet run --project src/TechnicalScanner.Worker -- test-alerts
+```
+
+6. Run at least **two** nightly scans before expecting transition alerts (the first scan establishes a baseline):
+
+```bash
+dotnet run --project src/TechnicalScanner.Worker -- run-nightly-scan --years 10
+```
+
+Use `--no-alerts` to skip alert processing on a one-off run. To replay alerts for a prior scan:
+
+```bash
+dotnet run --project src/TechnicalScanner.Worker -- send-alerts --scan-run 12
+```
+
+### Other channels
+
+Enable in `appsettings.json` or `appsettings.Local.json`:
 
 ```json
 "Alerts": {
@@ -196,19 +254,9 @@ Enable in `appsettings.json`:
   "CompositeScoreThreshold": 4,
   "Channels": {
     "Webhook": { "Enabled": true, "Url": "https://example.com/hooks/scanner" },
-    "Discord": { "Enabled": true, "WebhookUrl": "https://discord.com/api/webhooks/..." },
-    "Slack": { "Enabled": true, "WebhookUrl": "https://hooks.slack.com/services/..." },
     "Telegram": { "Enabled": true, "BotToken": "...", "ChatId": "..." },
-    "Email": {
-      "Enabled": true,
-      "SmtpHost": "smtp.example.com",
-      "SmtpPort": 587,
-      "UseSsl": true,
-      "Username": "...",
-      "Password": "...",
-      "FromAddress": "scanner@example.com",
-      "ToAddress": "you@example.com"
-    }
+    "Discord": { "Enabled": true, "WebhookUrl": "https://discord.com/api/webhooks/..." },
+    "Slack": { "Enabled": true, "WebhookUrl": "https://hooks.slack.com/services/..." }
   }
 }
 ```

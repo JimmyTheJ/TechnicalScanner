@@ -1,7 +1,9 @@
 using System.Reflection;
 using TechnicalScanner.Infrastructure;
+using TechnicalScanner.Infrastructure.Configuration;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Configuration.AddLocalAppSettings();
 
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddCors(options =>

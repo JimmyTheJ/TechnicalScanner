@@ -1,0 +1,17 @@
+{
+  "Alerts": {
+    "Enabled": true,
+    "Channels": {
+      "Email": {
+        "Enabled": true,
+        "SmtpHost": "smtp.purelymail.com",
+        "SmtpPort": 587,
+        "UseSsl": true,
+        "Username": "scanner@yourdomain.com",
+        "Password": "your-purelymail-app-password",
+        "FromAddress": "scanner@yourdomain.com",
+        "ToAddress": "you@yourdomain.com"
+      }
+    }
+  }
+}

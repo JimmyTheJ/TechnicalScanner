@@ -161,7 +161,7 @@ public sealed class EmailAlertChannel(IOptions<AlertsOptions> options) : IAlertC
 
     public string Destination => options.Value.Channels.Email.ToAddress;
 
-    public Task SendAsync(AlertNotification notification, CancellationToken cancellationToken)
+    public async Task SendAsync(AlertNotification notification, CancellationToken cancellationToken)
     {
         var email = options.Value.Channels.Email;
         using var message = new System.Net.Mail.MailMessage
@@ -181,7 +181,6 @@ public sealed class EmailAlertChannel(IOptions<AlertsOptions> options) : IAlertC
                 : new System.Net.NetworkCredential(email.Username, email.Password)
         };
 
-        client.Send(message);
-        return Task.CompletedTask;
+        await client.SendMailAsync(message, cancellationToken);
     }
 }

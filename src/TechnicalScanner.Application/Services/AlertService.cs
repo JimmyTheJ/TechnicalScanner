@@ -14,6 +14,34 @@ public sealed class AlertService(
     IOptions<AlertsOptions> options,
     ILogger<AlertService> logger)
 {
+    public async Task SendTestNotificationAsync(CancellationToken cancellationToken)
+    {
+        var configuredChannels = channels.Where(c => c.IsConfigured).ToList();
+        if (configuredChannels.Count == 0)
+        {
+            throw new InvalidOperationException(
+                "No alert channels are configured. Copy appsettings.Local.json.example to appsettings.Local.json and set your email credentials.");
+        }
+
+        var notification = new AlertNotification(
+            "Technical Scanner test alert",
+            "If you received this message, alert delivery is configured correctly.",
+            [
+                new AlertNotificationItem(
+                    "Test",
+                    "System",
+                    "test",
+                    "Technical Scanner test alert",
+                    "Test notification from Technical Scanner.")
+            ]);
+
+        foreach (var channel in configuredChannels)
+        {
+            await channel.SendAsync(notification, cancellationToken);
+            logger.LogInformation("Test alert sent via {Channel} to {Destination}.", channel.ChannelName, channel.Destination);
+        }
+    }
+
     public async Task<int> ProcessTransitionsAsync(long scanRunId, CancellationToken cancellationToken)
     {
         var alertOptions = options.Value;
