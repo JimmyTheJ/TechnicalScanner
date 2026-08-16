@@ -1,0 +1,19 @@
+# Optional overlay: attach services to an existing Docker network (e.g. nginx reverse proxy).
+#
+# Set DOCKER_SHARED_NETWORK in .env and run via compose.ps1 / compose.sh.
+# The network must already exist (e.g. docker network create nginx_network).
+
+services:
+  api:
+    networks:
+      - default
+      - shared
+  web:
+    networks:
+      - default
+      - shared
+
+networks:
+  shared:
+    external: true
+    name: ${DOCKER_SHARED_NETWORK:?Set DOCKER_SHARED_NETWORK to the external network name}

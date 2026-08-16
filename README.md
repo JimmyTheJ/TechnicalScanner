@@ -31,14 +31,54 @@ Ticker universe
 ## Prerequisites
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download)
-- [Docker](https://www.docker.com/) (optional, for PostgreSQL)
+- [Docker](https://www.docker.com/) (optional, for PostgreSQL and the full stack)
+- [Node.js](https://nodejs.org/) 22+ (only for local dashboard `npm run dev`)
+
+## Docker
+
+Copy `.env.example` to `.env`, then use the compose wrappers (not bare `docker compose`) so an optional shared network is picked up:
+
+```powershell
+Copy-Item .env.example .env
+.\compose.ps1 up --build -d
+```
+
+On Linux/macOS, use `./compose.sh` instead of `.\compose.ps1`.
+
+Defaults:
+
+| Service | Local URL | Container | Container port |
+|---------|-----------|-----------|----------------|
+| Dashboard | http://localhost:3080 | `technical-scanner-web` | `80` |
+| API / Swagger | http://localhost:5223/swagger (also via the dashboard at `/swagger`) | `technical-scanner-api` | `8080` |
+| PostgreSQL | `localhost:5432` | `technical-scanner-postgres` | `5432` |
+
+Override `WEB_PORT`, `API_PORT`, or `POSTGRES_PORT` in `.env` if those host ports are taken.
+
+To attach the API and dashboard to an existing reverse-proxy network (e.g. nginx), uncomment `DOCKER_SHARED_NETWORK=nginx_network` in `.env`. The network must already exist. Nginx Proxy Manager should forward with scheme `http` to hostname `technical-scanner-web` on port `80` (the container port, not the host port). Point a separate API host at `technical-scanner-api` on port `8080` if you need the API on its own hostname.
+
+Verify the overlay with `.\compose.ps1 config` — you should see both the project default network and `name: nginx_network`.
+
+Worker jobs are a compose profile (not started by `up`). Example:
+
+```powershell
+.\compose.ps1 --profile worker run --rm worker run-nightly-scan --years 10
+```
 
 ## Quick start
 
 ### 1. Start PostgreSQL
 
-```bash
-docker compose up -d
+Full stack (Postgres + API + dashboard):
+
+```powershell
+.\compose.ps1 up --build -d
+```
+
+Postgres only, for host-run `dotnet` / `npm`:
+
+```powershell
+.\compose.ps1 up -d postgres
 ```
 
 ### 2. Run migrations and seed data
@@ -120,25 +160,37 @@ Pages:
 
 ## Configuration
 
-Connection string and market data settings in `appsettings.json`:
+Edit the root `.env` file (copy from `.env.example`). Keys use `__` in place of JSON nesting and overlay `appsettings.json` for both `dotnet run` and Docker:
+
+```env
+ConnectionStrings__TechnicalScanner=Host=localhost;Port=5432;Database=technical_scanner;Username=postgres;Password=postgres
+MarketData__Provider=YahooFinance
+Alerts__Enabled=true
+Alerts__Channels__Email__Password=your-app-password
+```
+
+That maps onto the same shape as `appsettings.json`:
 
 ```json
 "ConnectionStrings": {
   "TechnicalScanner": "Host=localhost;Port=5432;Database=technical_scanner;Username=postgres;Password=postgres"
 },
 "MarketData": {
-  "Provider": "YahooFinance",
-  "RequestsPerSecond": 2,
-  "MaxRetries": 3,
-  "RetryDelaySeconds": 2,
-  "InitialHistoryYears": 10,
-  "Universe": {
-    "IncludeUs": true,
-    "IncludeCanada": true,
-    "IncludeEtfs": true
+  "Provider": "YahooFinance"
+},
+"Alerts": {
+  "Enabled": true,
+  "Channels": {
+    "Email": {
+      "Password": "your-app-password"
+    }
   }
 }
 ```
+
+Compose passes `.env` into the API and worker containers. Inside those containers the connection string `Host` is `postgres` (the compose service name). Host-run apps keep `Host=localhost`.
+
+`appsettings.Local.json` is still loaded if present, then `.env`, then process environment variables.
 
 ## Seeded indicators
 
@@ -155,11 +207,11 @@ Phase 4 uses **Yahoo Finance** for historical candles and public US/CA universe 
 - US: NASDAQ Trader symbol directories (NYSE, NASDAQ, AMEX, etc.)
 - Canada: TSX / TSXV company directories
 
-Set `"MarketData": { "Provider": "Seed" }` in `appsettings.json` to use the original 10-ticker synthetic provider for local/dev testing.
+Set `MarketData__Provider=Seed` in `.env` (or `"Provider": "Seed"` in `appsettings.json`) to use the original 10-ticker synthetic provider for local/dev testing.
 
 ### Rate limiting and retries
 
-Market data calls are wrapped with configurable rate limiting and transient retries (`RequestsPerSecond`, `MaxRetries`, `RetryDelaySeconds` in `appsettings.json`).
+Market data calls are wrapped with configurable rate limiting and transient retries (`MarketData__RequestsPerSecond`, `MarketData__MaxRetries`, `MarketData__RetryDelaySeconds` in `.env`).
 
 ### Incremental price updates
 
@@ -193,45 +245,31 @@ Email, webhook, Telegram, Discord, and Slack channels are supported. **Email via
 
 1. Create a sender address in PurelyMail (e.g. `scanner@yourdomain.com`).
 2. If you use 2FA, generate an **app password** in PurelyMail.
-3. Copy the example local settings file:
+3. Set email settings in the root `.env` (copy from `.env.example` if you have not already):
 
-```bash
-cp src/TechnicalScanner.Worker/appsettings.Local.json.example src/TechnicalScanner.Worker/appsettings.Local.json
+```env
+Alerts__Enabled=true
+Alerts__Channels__Email__Enabled=true
+Alerts__Channels__Email__SmtpHost=smtp.purelymail.com
+Alerts__Channels__Email__SmtpPort=587
+Alerts__Channels__Email__UseSsl=true
+Alerts__Channels__Email__Username=scanner@yourdomain.com
+Alerts__Channels__Email__Password=your-app-password
+Alerts__Channels__Email__FromAddress=scanner@yourdomain.com
+Alerts__Channels__Email__ToAddress=you@yourdomain.com
 ```
 
-4. Edit `appsettings.Local.json` with your PurelyMail credentials:
-
-```json
-{
-  "Alerts": {
-    "Enabled": true,
-    "Channels": {
-      "Email": {
-        "Enabled": true,
-        "SmtpHost": "smtp.purelymail.com",
-        "SmtpPort": 587,
-        "UseSsl": true,
-        "Username": "scanner@yourdomain.com",
-        "Password": "your-app-password",
-        "FromAddress": "scanner@yourdomain.com",
-        "ToAddress": "you@yourdomain.com"
-      }
-    }
-  }
-}
-```
-
-`appsettings.Local.json` is gitignored and loaded automatically by the Worker and API.
+`.env` is gitignored and loaded automatically by the Worker and API (and passed into those containers by Compose).
 
 PurelyMail SMTP: `smtp.purelymail.com`, port **587** (STARTTLS) or **465** (SSL/TLS). Use your **full email address** as the username.
 
-5. Send a test email (no scan required):
+4. Send a test email (no scan required):
 
 ```bash
 dotnet run --project src/TechnicalScanner.Worker -- test-alerts
 ```
 
-6. Run at least **two** nightly scans before expecting transition alerts (the first scan establishes a baseline):
+5. Run at least **two** nightly scans before expecting transition alerts (the first scan establishes a baseline):
 
 ```bash
 dotnet run --project src/TechnicalScanner.Worker -- run-nightly-scan --years 10
@@ -245,20 +283,21 @@ dotnet run --project src/TechnicalScanner.Worker -- send-alerts --scan-run 12
 
 ### Other channels
 
-Enable in `appsettings.json` or `appsettings.Local.json`:
+Enable other channels in `.env`:
 
-```json
-"Alerts": {
-  "Enabled": true,
-  "NotifyOnSignalFired": true,
-  "CompositeScoreThreshold": 4,
-  "Channels": {
-    "Webhook": { "Enabled": true, "Url": "https://example.com/hooks/scanner" },
-    "Telegram": { "Enabled": true, "BotToken": "...", "ChatId": "..." },
-    "Discord": { "Enabled": true, "WebhookUrl": "https://discord.com/api/webhooks/..." },
-    "Slack": { "Enabled": true, "WebhookUrl": "https://hooks.slack.com/services/..." }
-  }
-}
+```env
+Alerts__Enabled=true
+Alerts__NotifyOnSignalFired=true
+Alerts__CompositeScoreThreshold=4
+Alerts__Channels__Webhook__Enabled=true
+Alerts__Channels__Webhook__Url=https://example.com/hooks/scanner
+Alerts__Channels__Telegram__Enabled=true
+Alerts__Channels__Telegram__BotToken=...
+Alerts__Channels__Telegram__ChatId=...
+Alerts__Channels__Discord__Enabled=true
+Alerts__Channels__Discord__WebhookUrl=https://discord.com/api/webhooks/...
+Alerts__Channels__Slack__Enabled=true
+Alerts__Channels__Slack__WebhookUrl=https://hooks.slack.com/services/...
 ```
 
 Alert events and per-channel delivery status are stored in `alert_event` / `alert_delivery` and exposed via the API.

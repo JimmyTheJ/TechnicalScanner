@@ -1,15 +1,72 @@
+# Optional shared reverse-proxy network: set DOCKER_SHARED_NETWORK in .env and use compose.ps1 / compose.sh.
+
 services:
   postgres:
     image: postgres:16
     container_name: technical-scanner-postgres
     environment:
-      POSTGRES_DB: technical_scanner
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ${POSTGRES_DB:-technical_scanner}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - technical_scanner_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-technical_scanner}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: api
+    container_name: technical-scanner-api
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      ASPNETCORE_URLS: http://0.0.0.0:8080
+      ConnectionStrings__TechnicalScanner: Host=postgres;Port=5432;Database=${POSTGRES_DB:-technical_scanner};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "${API_PORT:-5223}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    container_name: technical-scanner-web
+    ports:
+      - "${WEB_PORT:-3080}:80"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  worker:
+    profiles: ["worker"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: worker
+    container_name: technical-scanner-worker
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      ConnectionStrings__TechnicalScanner: Host=postgres;Port=5432;Database=${POSTGRES_DB:-technical_scanner};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-postgres}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./exports:/app/exports
+    restart: "no"
 
 volumes:
   technical_scanner_pgdata:

@@ -1,0 +1,15 @@
+.git
+.vs
+.idea
+**/.DS_Store
+**/bin
+**/obj
+**/node_modules
+**/dist
+exports
+*.csv
+.env
+.env.*
+!.env.example
+**/appsettings.Local.json
+**/*.user
