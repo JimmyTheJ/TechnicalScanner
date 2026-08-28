@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using TechnicalScanner.Application.Abstractions;
 using TechnicalScanner.Application.Options;
+using TechnicalScanner.Application.Services.Queries;
 using TechnicalScanner.Domain.Entities;
 using TechnicalScanner.Domain.Enums;
 
@@ -20,6 +21,7 @@ public sealed class NightlyScanService(
     CsvExportService csvExportService,
     AlertService alertService,
     ITickerOperationLogger tickerOperationLogger,
+    ScanProfileQueryService scanProfileQueryService,
     IOptions<MarketDataOptions> marketDataOptions,
     ILogger<NightlyScanService> logger)
 {
@@ -54,6 +56,9 @@ public sealed class NightlyScanService(
 
             var aggregated = await candleAggregationService.AggregateAsync([Timeframe.W, Timeframe.M], cancellationToken);
             summary["candlesAggregated"] = aggregated;
+
+            scanProfileQueryService.EnsureIndicatorDefinitionsFromProfiles();
+            await dbContext.SaveChangesAsync(cancellationToken);
 
             var indicatorsCalculated = await indicatorCalculationService.CalculateAsync(cancellationToken);
             summary["indicatorsCalculated"] = indicatorsCalculated;

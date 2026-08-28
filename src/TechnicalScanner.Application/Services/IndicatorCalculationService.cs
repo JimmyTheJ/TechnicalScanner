@@ -11,67 +11,48 @@ public sealed class IndicatorCalculationService(
     IndicatorCalculatorRegistry calculatorRegistry,
     ILogger<IndicatorCalculationService> logger)
 {
-    public async Task<int> CalculateAsync(CancellationToken cancellationToken)
+    public Task<int> CalculateAsync(CancellationToken cancellationToken)
+        => CalculateAsync(null, cancellationToken);
+
+    public async Task<int> CalculateAsync(string? indicatorCode, CancellationToken cancellationToken)
     {
-        var definitions = dbContext.IndicatorDefinitions.Where(d => d.IsActive).ToList();
+        var definitions = dbContext.IndicatorDefinitions
+            .Where(d => d.IsActive)
+            .ToList()
+            .Where(d => string.IsNullOrWhiteSpace(indicatorCode) ||
+                        d.Code.Equals(indicatorCode, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        if (definitions.Count == 0)
+        {
+            logger.LogWarning("No active indicator definitions matched {IndicatorCode}.", indicatorCode);
+            return 0;
+        }
+
         var tickers = dbContext.Tickers.Where(t => t.IsActive).ToList();
         var calculated = 0;
 
         foreach (var ticker in tickers)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+            var candlesByTimeframe = dbContext.PriceCandles
+                .Where(p => p.TickerId == ticker.Id)
+                .ToList()
+                .GroupBy(p => p.Timeframe)
+                .ToDictionary(g => g.Key, g => g.OrderBy(c => c.CandleDate).ToList());
+
             foreach (var definition in definitions)
             {
-                cancellationToken.ThrowIfCancellationRequested();
+                if (!candlesByTimeframe.TryGetValue(definition.Timeframe, out var candles) || candles.Count == 0)
+                {
+                    continue;
+                }
 
                 try
                 {
-                    var candles = dbContext.PriceCandles
-                        .Where(p => p.TickerId == ticker.Id && p.Timeframe == definition.Timeframe)
-                        .OrderBy(p => p.CandleDate)
-                        .ToList();
-
-                    if (candles.Count == 0)
-                    {
-                        continue;
-                    }
-
                     var calculator = calculatorRegistry.GetRequired(definition.IndicatorType);
                     var results = await calculator.CalculateAsync(ticker, definition, candles, cancellationToken);
-
-                    foreach (var result in results)
-                    {
-                        var existing = dbContext.IndicatorValues.FirstOrDefault(v =>
-                            v.TickerId == ticker.Id &&
-                            v.IndicatorDefinitionId == definition.Id &&
-                            v.CandleDate == result.CandleDate);
-
-                        var valuesJson = JsonSerializer.Serialize(result.Values);
-
-                        if (existing is null)
-                        {
-                            dbContext.Add(new IndicatorValue
-                            {
-                                TickerId = ticker.Id,
-                                IndicatorDefinitionId = definition.Id,
-                                CandleDate = result.CandleDate,
-                                Timeframe = result.Timeframe,
-                                PrimaryValue = result.PrimaryValue,
-                                SecondaryValue = result.SecondaryValue,
-                                TertiaryValue = result.TertiaryValue,
-                                ValuesJson = valuesJson
-                            });
-                        }
-                        else
-                        {
-                            existing.PrimaryValue = result.PrimaryValue;
-                            existing.SecondaryValue = result.SecondaryValue;
-                            existing.TertiaryValue = result.TertiaryValue;
-                            existing.ValuesJson = valuesJson;
-                            existing.UpdatedUtc = DateTimeOffset.UtcNow;
-                        }
-                    }
-
-                    await dbContext.SaveChangesAsync(cancellationToken);
+                    UpsertResults(ticker.Id, definition, results);
                     calculated++;
                 }
                 catch (Exception ex)
@@ -83,9 +64,52 @@ public sealed class IndicatorCalculationService(
                         ticker.Symbol);
                 }
             }
+
+            await dbContext.SaveChangesAsync(cancellationToken);
         }
 
-        logger.LogInformation("Calculated {Count} ticker/indicator pairs.", calculated);
+        logger.LogInformation(
+            "Calculated {Count} ticker/indicator pairs{Filter}.",
+            calculated,
+            string.IsNullOrWhiteSpace(indicatorCode) ? string.Empty : $" for {indicatorCode}");
         return calculated;
+    }
+
+    private void UpsertResults(
+        long tickerId,
+        IndicatorDefinition definition,
+        IReadOnlyList<Models.IndicatorValueResult> results)
+    {
+        var existing = dbContext.IndicatorValues
+            .Where(v => v.TickerId == tickerId && v.IndicatorDefinitionId == definition.Id)
+            .ToList()
+            .ToDictionary(v => v.CandleDate);
+
+        foreach (var result in results)
+        {
+            var valuesJson = JsonSerializer.Serialize(result.Values);
+            if (existing.TryGetValue(result.CandleDate, out var row))
+            {
+                row.PrimaryValue = result.PrimaryValue;
+                row.SecondaryValue = result.SecondaryValue;
+                row.TertiaryValue = result.TertiaryValue;
+                row.ValuesJson = valuesJson;
+                row.UpdatedUtc = DateTimeOffset.UtcNow;
+            }
+            else
+            {
+                dbContext.Add(new IndicatorValue
+                {
+                    TickerId = tickerId,
+                    IndicatorDefinitionId = definition.Id,
+                    CandleDate = result.CandleDate,
+                    Timeframe = result.Timeframe,
+                    PrimaryValue = result.PrimaryValue,
+                    SecondaryValue = result.SecondaryValue,
+                    TertiaryValue = result.TertiaryValue,
+                    ValuesJson = valuesJson
+                });
+            }
+        }
     }
 }

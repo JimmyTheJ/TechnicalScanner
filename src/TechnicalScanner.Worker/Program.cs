@@ -40,8 +40,12 @@ switch (command)
         break;
     }
     case "calculate-indicators":
-        await services.GetRequiredService<IndicatorCalculationService>().CalculateAsync(CancellationToken.None);
+    {
+        var code = ParseStringOption(args, "--code", null);
+        await services.GetRequiredService<IndicatorCalculationService>()
+            .CalculateAsync(code, CancellationToken.None);
         break;
+    }
     case "evaluate-signals":
         await services.GetRequiredService<SignalEvaluationService>().EvaluateAsync(null, CancellationToken.None);
         break;
@@ -110,7 +114,7 @@ static void PrintUsage()
           import-tickers
           update-prices --years 10 [--full]
           aggregate-candles --timeframes W,M
-          calculate-indicators
+          calculate-indicators [--code SMA_20_D]
           evaluate-signals
           calculate-scores
           calculate-breadth

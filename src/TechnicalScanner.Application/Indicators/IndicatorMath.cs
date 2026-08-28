@@ -94,6 +94,19 @@ public static class IndicatorMath
         return (middle, upper, lower, stdDev);
     }
 
+    public static decimal TrueRange(decimal high, decimal low, decimal? previousClose)
+    {
+        var highLow = high - low;
+        if (previousClose is null)
+        {
+            return highLow;
+        }
+
+        var highClose = Math.Abs(high - previousClose.Value);
+        var lowClose = Math.Abs(low - previousClose.Value);
+        return Math.Max(highLow, Math.Max(highClose, lowClose));
+    }
+
     public static decimal? DistancePercent(decimal price, decimal reference)
     {
         if (reference == 0)

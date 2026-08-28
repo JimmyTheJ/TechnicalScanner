@@ -7,6 +7,8 @@ interface ScreenerTableProps {
 }
 
 export function ScreenerTable({ rows }: ScreenerTableProps) {
+  const metricCodes = [...new Set(rows.flatMap((row) => (row.metrics ?? []).map((metric) => metric.code)))]
+
   return (
     <div className="table-wrap">
       <table className="data-table">
@@ -17,12 +19,17 @@ export function ScreenerTable({ rows }: ScreenerTableProps) {
             <th>Country</th>
             <th>Sector</th>
             <th>Close</th>
-            <th>BMSB</th>
-            <th>D RSI</th>
-            <th>W RSI</th>
-            <th>200D %</th>
-            <th>BB %B</th>
+            {metricCodes.length > 0 ? metricCodes.map((code) => <th key={code}>{code}</th>) : (
+              <>
+                <th>BMSB</th>
+                <th>D RSI</th>
+                <th>W RSI</th>
+                <th>200D %</th>
+                <th>BB %B</th>
+              </>
+            )}
             <th>Score</th>
+            <th>Match</th>
             <th>Signals</th>
           </tr>
         </thead>
@@ -38,14 +45,24 @@ export function ScreenerTable({ rows }: ScreenerTableProps) {
               <td>{row.country}</td>
               <td>{row.sector ?? '—'}</td>
               <td>{formatNumber(row.close)}</td>
-              <td>
-                <span className={`pill ${row.bmsbStatus?.toLowerCase() ?? ''}`}>{row.bmsbStatus ?? '—'}</span>
-              </td>
-              <td>{formatNumber(row.dailyRsi, 1)}</td>
-              <td>{formatNumber(row.weeklyRsi, 1)}</td>
-              <td>{formatPercent(row.sma200DDistancePct)}</td>
-              <td>{formatNumber(row.dailyBollingerPercentB, 2)}</td>
+              {metricCodes.length > 0
+                ? metricCodes.map((code) => {
+                    const metric = (row.metrics ?? []).find((item) => item.code === code)
+                    return <td key={code}>{formatNumber(metric?.primaryValue, 2)}</td>
+                  })
+                : (
+                  <>
+                    <td>
+                      <span className={`pill ${row.bmsbStatus?.toLowerCase() ?? ''}`}>{row.bmsbStatus ?? '—'}</span>
+                    </td>
+                    <td>{formatNumber(row.dailyRsi, 1)}</td>
+                    <td>{formatNumber(row.weeklyRsi, 1)}</td>
+                    <td>{formatPercent(row.sma200DDistancePct)}</td>
+                    <td>{formatNumber(row.dailyBollingerPercentB, 2)}</td>
+                  </>
+                )}
               <td>{formatNumber(row.compositeScore, 1)}</td>
+              <td>{row.profileMatch == null ? '—' : row.profileMatch ? 'Yes' : 'No'}</td>
               <td className="signals-cell">{row.matchedSignals.join(', ') || '—'}</td>
             </tr>
           ))}

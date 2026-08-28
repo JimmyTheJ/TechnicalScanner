@@ -42,7 +42,16 @@ export interface ScreenerRow {
   dailyBollingerPercentB?: number
   weeklyBollingerPercentB?: number
   compositeScore?: number
+  profileMatch?: boolean | null
+  profileCode?: string
+  metrics: ScreenerMetric[]
   matchedSignals: string[]
+}
+
+export interface ScreenerMetric {
+  code: string
+  primaryValue?: number
+  secondaryValue?: number
 }
 
 export interface ScreenerFilters {
@@ -62,6 +71,8 @@ export interface ScreenerFilters {
   maxCompositeScore?: number
   minBollingerPercentB?: number
   maxBollingerPercentB?: number
+  profile?: string
+  profileMatchOnly?: boolean
   search?: string
   sort?: string
   page?: number
@@ -147,6 +158,103 @@ export interface Watchlist {
   name: string
   symbols: string[]
   createdUtc: string
+}
+
+export interface IndicatorDefinition {
+  id: number
+  code: string
+  name: string
+  description?: string
+  indicatorType: string
+  timeframe: string
+  parametersJson: string
+}
+
+export interface IndicatorFieldSchema {
+  name: string
+  valueType: string
+  description: string
+}
+
+export interface IndicatorParameterSchema {
+  name: string
+  valueType: string
+  defaultValue?: unknown
+  description: string
+}
+
+export interface IndicatorTypeCatalogEntry {
+  indicatorType: string
+  name: string
+  description: string
+  defaultCodePattern: string
+  parameters: IndicatorParameterSchema[]
+  fields: IndicatorFieldSchema[]
+}
+
+export interface ProfileUniverse {
+  country?: string
+  includeEtfs: boolean
+  minDollarVolume?: number | null
+  minHistoryDays?: number | null
+}
+
+export interface ProfileIndicatorSpec {
+  code: string
+  name?: string
+  indicatorType?: string
+  timeframe?: string
+  parameters?: Record<string, unknown>
+}
+
+export interface ScoreWeightSpec {
+  label: string
+  indicatorCode: string
+  field: string
+  operator: string
+  value: unknown
+  weight: number
+}
+
+export interface ScanProfile {
+  id: number
+  code: string
+  name: string
+  description?: string
+  universe: ProfileUniverse
+  indicators: ProfileIndicatorSpec[]
+  ruleJson: string
+  scoreWeights: ScoreWeightSpec[]
+  isActive: boolean
+  missingCalculationCodes: string[]
+  updatedUtc: string
+}
+
+export interface UpsertScanProfileRequest {
+  code: string
+  name: string
+  description?: string
+  universe: ProfileUniverse
+  indicators: ProfileIndicatorSpec[]
+  ruleJson: string
+  scoreWeights: ScoreWeightSpec[]
+  isActive: boolean
+}
+
+export interface ProfileBacktestHit {
+  date: string
+  close: number
+  forwardReturnPct?: number
+  score?: number
+}
+
+export interface ProfileBacktestResult {
+  profileCode: string
+  symbol: string
+  matchDays: number
+  entryCount: number
+  forwardDays: number
+  entries: ProfileBacktestHit[]
 }
 
 export interface SectorHeatmapCell {

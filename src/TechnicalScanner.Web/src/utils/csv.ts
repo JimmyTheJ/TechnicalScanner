@@ -19,7 +19,9 @@ export function exportScreenerToCsv(rows: ScreenerRow[], filename = 'technical-s
     'Sma50WDistancePct',
     'DailyBollingerPercentB',
     'CompositeScore',
+    'ProfileMatch',
     'MatchedSignals',
+    'Metrics',
   ]
 
   const lines = [
@@ -43,7 +45,9 @@ export function exportScreenerToCsv(rows: ScreenerRow[], filename = 'technical-s
         row.sma50WDistancePct ?? '',
         row.dailyBollingerPercentB ?? '',
         row.compositeScore ?? '',
+        row.profileMatch ?? '',
         row.matchedSignals.join('|'),
+        (row.metrics ?? []).map((metric) => `${metric.code}:${metric.primaryValue ?? ''}`).join('|'),
       ]
         .map(csvEscape)
         .join(','),
@@ -59,7 +63,7 @@ export function exportScreenerToCsv(rows: ScreenerRow[], filename = 'technical-s
   URL.revokeObjectURL(url)
 }
 
-function csvEscape(value: string | number): string {
+function csvEscape(value: string | number | boolean): string {
   const text = String(value)
   if (text.includes(',') || text.includes('"') || text.includes('\n')) {
     return `"${text.replaceAll('"', '""')}"`

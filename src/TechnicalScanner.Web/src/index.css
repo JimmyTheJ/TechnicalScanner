@@ -316,6 +316,25 @@ pre {
   color: #fecaca;
 }
 
+.rule-row,
+.score-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px;
+  align-items: end;
+  margin-top: 8px;
+}
+
+.inline-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.inline-toggle input {
+  width: auto;
+}
+
 @media (max-width: 960px) {
   .app-header,
   .panel-grid,

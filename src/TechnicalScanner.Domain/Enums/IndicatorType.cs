@@ -6,7 +6,10 @@ public enum IndicatorType
     RSI,
     SMA,
     EMA,
-    BOLLINGER_BANDS
+    BOLLINGER_BANDS,
+    VOLUME,
+    ATR,
+    PRICE_RANGE
 }
 
 public static class IndicatorTypeExtensions
@@ -18,6 +21,9 @@ public static class IndicatorTypeExtensions
         IndicatorType.SMA => "SMA",
         IndicatorType.EMA => "EMA",
         IndicatorType.BOLLINGER_BANDS => "BOLLINGER_BANDS",
+        IndicatorType.VOLUME => "VOLUME",
+        IndicatorType.ATR => "ATR",
+        IndicatorType.PRICE_RANGE => "PRICE_RANGE",
         _ => throw new ArgumentOutOfRangeException(nameof(indicatorType))
     };
 
@@ -28,6 +34,9 @@ public static class IndicatorTypeExtensions
         "SMA" => IndicatorType.SMA,
         "EMA" => IndicatorType.EMA,
         "BOLLINGER_BANDS" => IndicatorType.BOLLINGER_BANDS,
+        "VOLUME" => IndicatorType.VOLUME,
+        "ATR" => IndicatorType.ATR,
+        "PRICE_RANGE" => IndicatorType.PRICE_RANGE,
         _ => throw new ArgumentOutOfRangeException(nameof(code), code, "Unsupported indicator type.")
     };
 }

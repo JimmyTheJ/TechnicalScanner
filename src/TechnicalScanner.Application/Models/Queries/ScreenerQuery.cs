@@ -1,3 +1,5 @@
+using TechnicalScanner.Application.Models.Profiles;
+
 namespace TechnicalScanner.Application.Models.Queries;
 
 public sealed class ScreenerQuery
@@ -18,6 +20,8 @@ public sealed class ScreenerQuery
     public decimal? MaxCompositeScore { get; set; }
     public decimal? MinBollingerPercentB { get; set; }
     public decimal? MaxBollingerPercentB { get; set; }
+    public string? Profile { get; set; }
+    public bool ProfileMatchOnly { get; set; }
     public string? Search { get; set; }
     public string Sort { get; set; } = "compositeScoreDesc";
     public int Page { get; set; } = 1;
@@ -47,5 +51,8 @@ public sealed class ScreenerRowDto
     public decimal? DailyBollingerPercentB { get; init; }
     public decimal? WeeklyBollingerPercentB { get; init; }
     public decimal? CompositeScore { get; init; }
+    public bool? ProfileMatch { get; init; }
+    public string? ProfileCode { get; init; }
+    public IReadOnlyList<ScreenerMetricDto> Metrics { get; init; } = [];
     public IReadOnlyList<string> MatchedSignals { get; init; } = [];
 }

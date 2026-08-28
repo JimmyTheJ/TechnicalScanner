@@ -2,18 +2,23 @@ import type {
   BreadthSnapshot,
   IndicatorHistoryPoint,
   IndicatorLatest,
+  IndicatorDefinition,
+  IndicatorTypeCatalogEntry,
   PagedResult,
+  ProfileBacktestResult,
+  ScanProfile,
   ScannerLatest,
   ScreenerFilters,
   ScreenerRow,
   SignalDefinition,
   SignalMatch,
   TickerListItem,
+  UpsertScanProfileRequest,
 } from './types'
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? ''
 
-function buildQuery(params: Record<string, string | number | undefined | null>): string {
+function buildQuery(params: Record<string, string | number | boolean | undefined | null>): string {
   const search = new URLSearchParams()
   for (const [key, value] of Object.entries(params)) {
     if (value !== undefined && value !== null && value !== '') {
@@ -27,9 +32,37 @@ function buildQuery(params: Record<string, string | number | undefined | null>):
 async function getJson<T>(path: string): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`)
   if (!response.ok) {
-    throw new Error(`Request failed: ${response.status} ${response.statusText}`)
+    throw new Error(await readError(response))
   }
   return response.json() as Promise<T>
+}
+
+async function sendJson<T>(path: string, method: string, body?: unknown): Promise<T> {
+  const response = await fetch(`${API_BASE}${path}`, {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  })
+  if (!response.ok) {
+    throw new Error(await readError(response))
+  }
+  if (response.status === 204) {
+    return undefined as T
+  }
+  return response.json() as Promise<T>
+}
+
+async function readError(response: Response): Promise<string> {
+  const text = await response.text()
+  try {
+    const parsed = JSON.parse(text) as { error?: string }
+    if (parsed.error) {
+      return parsed.error
+    }
+  } catch {
+    // use raw text
+  }
+  return text || `Request failed: ${response.status} ${response.statusText}`
 }
 
 export const api = {
@@ -54,6 +87,8 @@ export const api = {
         maxCompositeScore: filters.maxCompositeScore,
         minBollingerPercentB: filters.minBollingerPercentB,
         maxBollingerPercentB: filters.maxBollingerPercentB,
+        profile: filters.profile,
+        profileMatchOnly: filters.profile ? Boolean(filters.profileMatchOnly) : undefined,
         search: filters.search,
         sort: filters.sort ?? 'compositeScoreDesc',
         page: filters.page ?? 1,
@@ -92,6 +127,10 @@ export const api = {
       `/api/indicators/history${buildQuery({ ticker, indicatorCode })}`,
     ),
 
+  getIndicatorDefinitions: () => getJson<IndicatorDefinition[]>('/api/indicators/definitions'),
+
+  getIndicatorCatalog: () => getJson<IndicatorTypeCatalogEntry[]>('/api/indicators/catalog'),
+
   getSignalDefinitions: () => getJson<SignalDefinition[]>('/api/signals/definitions'),
 
   getSignalMatches: (params: { signal?: string; country?: string; page?: number; pageSize?: number }) =>
@@ -102,6 +141,24 @@ export const api = {
         page: params.page ?? 1,
         pageSize: params.pageSize ?? 50,
       })}`,
+    ),
+
+  getProfiles: () => getJson<ScanProfile[]>('/api/profiles'),
+
+  getProfile: (code: string) => getJson<ScanProfile>(`/api/profiles/${encodeURIComponent(code)}`),
+
+  createProfile: (request: UpsertScanProfileRequest) =>
+    sendJson<ScanProfile>('/api/profiles', 'POST', request),
+
+  updateProfile: (code: string, request: UpsertScanProfileRequest) =>
+    sendJson<ScanProfile>(`/api/profiles/${encodeURIComponent(code)}`, 'PUT', request),
+
+  deactivateProfile: (code: string) =>
+    sendJson<ScanProfile>(`/api/profiles/${encodeURIComponent(code)}`, 'DELETE'),
+
+  backtestProfile: (code: string, ticker: string, forwardDays = 20) =>
+    getJson<ProfileBacktestResult>(
+      `/api/profiles/${encodeURIComponent(code)}/backtest${buildQuery({ ticker, forwardDays })}`,
     ),
 
   getBreadthLatest: () => getJson<BreadthSnapshot[]>('/api/breadth/latest'),

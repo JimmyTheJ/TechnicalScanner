@@ -10,15 +10,19 @@ import {
   YAxis,
 } from 'recharts'
 import { api } from '../api/client'
-import type { IndicatorHistoryPoint, IndicatorLatest, TickerListItem } from '../api/types'
+import type { IndicatorHistoryPoint, IndicatorLatest, ProfileBacktestResult, ScanProfile, TickerListItem } from '../api/types'
 import { ErrorState, LoadingState } from '../components/StateBlocks'
-import { formatDate, formatMarketCap, formatNumber } from '../utils/format'
+import { formatDate, formatMarketCap, formatNumber, formatPercent } from '../utils/format'
 
 export function StockDetailPage() {
   const { symbol = '' } = useParams()
   const [ticker, setTicker] = useState<TickerListItem | null>(null)
   const [indicators, setIndicators] = useState<IndicatorLatest[]>([])
   const [rsiHistory, setRsiHistory] = useState<IndicatorHistoryPoint[]>([])
+  const [profiles, setProfiles] = useState<ScanProfile[]>([])
+  const [profileCode, setProfileCode] = useState('')
+  const [backtest, setBacktest] = useState<ProfileBacktestResult | null>(null)
+  const [backtestError, setBacktestError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -32,16 +36,19 @@ export function StockDetailPage() {
     async function load() {
       try {
         setLoading(true)
-        const [tickerResult, indicatorResult, historyResult] = await Promise.all([
+        const [tickerResult, indicatorResult, historyResult, profileResult] = await Promise.all([
           api.getTicker(symbol),
           api.getIndicatorLatest(symbol),
           api.getIndicatorHistory(symbol, 'RSI_14_W'),
+          api.getProfiles().catch(() => [] as ScanProfile[]),
         ])
 
         if (!cancelled) {
           setTicker(tickerResult)
           setIndicators(indicatorResult)
           setRsiHistory(historyResult)
+          setProfiles(profileResult)
+          setProfileCode((current) => current || profileResult[0]?.code || '')
           setError(null)
         }
       } catch (err) {
@@ -113,6 +120,72 @@ export function StockDetailPage() {
             </LineChart>
           </ResponsiveContainer>
         </div>
+      </section>
+
+      <section className="panel-card">
+        <div className="panel-header">
+          <h3>Profile replay</h3>
+          <div className="button-row">
+            <select value={profileCode} onChange={(e) => setProfileCode(e.target.value)}>
+              {profiles.map((profile) => (
+                <option key={profile.code} value={profile.code}>
+                  {profile.name}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className="button secondary"
+              onClick={() => {
+                if (!profileCode) {
+                  return
+                }
+                setBacktestError(null)
+                void api
+                  .backtestProfile(profileCode, symbol, 20)
+                  .then(setBacktest)
+                  .catch((err: unknown) => {
+                    setBacktest(null)
+                    setBacktestError(err instanceof Error ? err.message : 'Backtest failed')
+                  })
+              }}
+            >
+              Replay
+            </button>
+          </div>
+        </div>
+        {backtestError ? <p className="muted">{backtestError}</p> : null}
+        {backtest ? (
+          <>
+            <p className="muted">
+              {backtest.entryCount} entries · {backtest.matchDays} matching days · {backtest.forwardDays}d forward return
+            </p>
+            <div className="table-wrap">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Close</th>
+                    <th>Score</th>
+                    <th>Fwd %</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {backtest.entries.map((hit) => (
+                    <tr key={hit.date}>
+                      <td>{hit.date}</td>
+                      <td>{formatNumber(hit.close)}</td>
+                      <td>{formatNumber(hit.score, 1)}</td>
+                      <td>{formatPercent(hit.forwardReturnPct)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        ) : (
+          <p className="muted">Replay a cheapness profile across this ticker’s stored indicator history.</p>
+        )}
       </section>
 
       <section className="panel-card">

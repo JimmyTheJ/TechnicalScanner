@@ -1,5 +1,4 @@
 using System.Text.Json;
-using TechnicalScanner.Domain.Entities;
 
 namespace TechnicalScanner.Application.Signals;
 
@@ -51,30 +50,58 @@ public sealed class SignalRuleEvaluator
     {
         "=" => JsonEquals(actual, expected),
         "!=" => !JsonEquals(actual, expected),
-        "<" => actual.GetDecimal() < expected.GetDecimal(),
-        "<=" => actual.GetDecimal() <= expected.GetDecimal(),
-        ">" => actual.GetDecimal() > expected.GetDecimal(),
-        ">=" => actual.GetDecimal() >= expected.GetDecimal(),
+        "<" => AsDecimal(actual) < AsDecimal(expected),
+        "<=" => AsDecimal(actual) <= AsDecimal(expected),
+        ">" => AsDecimal(actual) > AsDecimal(expected),
+        ">=" => AsDecimal(actual) >= AsDecimal(expected),
         _ => throw new NotSupportedException($"Operator '{op}' is not supported in phase 1.")
+    };
+
+    private static decimal AsDecimal(JsonElement element) => element.ValueKind switch
+    {
+        JsonValueKind.Number => element.GetDecimal(),
+        JsonValueKind.String when decimal.TryParse(element.GetString(), out var parsed) => parsed,
+        JsonValueKind.True => 1,
+        JsonValueKind.False => 0,
+        _ => throw new InvalidOperationException($"Cannot compare non-numeric value '{element}'.")
     };
 
     private static bool JsonEquals(JsonElement actual, JsonElement expected)
     {
-        if (actual.ValueKind != expected.ValueKind)
+        if (TryGetBoolean(actual, out var actualBool) && TryGetBoolean(expected, out var expectedBool))
         {
-            if (actual.ValueKind == JsonValueKind.True || actual.ValueKind == JsonValueKind.False)
-            {
-                return actual.GetBoolean() == (expected.ValueKind == JsonValueKind.True);
-            }
-
-            if (actual.ValueKind == JsonValueKind.Number && expected.ValueKind == JsonValueKind.Number)
-            {
-                return actual.GetDecimal() == expected.GetDecimal();
-            }
-
-            return actual.ToString() == expected.ToString();
+            return actualBool == expectedBool;
         }
 
-        return actual.ToString() == expected.ToString();
+        if (actual.ValueKind == JsonValueKind.Number || expected.ValueKind == JsonValueKind.Number)
+        {
+            try
+            {
+                return AsDecimal(actual) == AsDecimal(expected);
+            }
+            catch (InvalidOperationException)
+            {
+                // fall through to string compare
+            }
+        }
+
+        return string.Equals(actual.ToString(), expected.ToString(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool TryGetBoolean(JsonElement element, out bool value)
+    {
+        if (element.ValueKind is JsonValueKind.True or JsonValueKind.False)
+        {
+            value = element.GetBoolean();
+            return true;
+        }
+
+        if (element.ValueKind == JsonValueKind.String && bool.TryParse(element.GetString(), out value))
+        {
+            return true;
+        }
+
+        value = false;
+        return false;
     }
 }

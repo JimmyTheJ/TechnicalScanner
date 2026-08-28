@@ -326,6 +326,62 @@ namespace TechnicalScanner.Infrastructure.Migrations
                     b.ToTable("price_candle", (string)null);
                 });
 
+            modelBuilder.Entity("TechnicalScanner.Domain.Entities.ScanProfile", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset>("CreatedUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text");
+
+                    b.Property<string>("IndicatorsJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("indicators");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("RuleJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("rule_json");
+
+                    b.Property<string>("ScoreWeightsJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("score_weights");
+
+                    b.Property<string>("UniverseJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("universe");
+
+                    b.Property<DateTimeOffset>("UpdatedUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.ToTable("scan_profile", (string)null);
+                });
+
             modelBuilder.Entity("TechnicalScanner.Domain.Entities.ScanRun", b =>
                 {
                     b.Property<long>("Id")

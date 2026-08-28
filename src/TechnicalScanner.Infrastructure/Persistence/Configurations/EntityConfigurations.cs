@@ -144,6 +144,21 @@ public sealed class AlertEventConfiguration : IEntityTypeConfiguration<AlertEven
     }
 }
 
+public sealed class ScanProfileConfiguration : IEntityTypeConfiguration<ScanProfile>
+{
+    public void Configure(EntityTypeBuilder<ScanProfile> builder)
+    {
+        builder.ToTable("scan_profile");
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.Code).IsRequired();
+        builder.HasIndex(x => x.Code).IsUnique();
+        builder.Property(x => x.UniverseJson).HasColumnName("universe").HasColumnType("jsonb");
+        builder.Property(x => x.IndicatorsJson).HasColumnName("indicators").HasColumnType("jsonb");
+        builder.Property(x => x.RuleJson).HasColumnName("rule_json").HasColumnType("jsonb");
+        builder.Property(x => x.ScoreWeightsJson).HasColumnName("score_weights").HasColumnType("jsonb");
+    }
+}
+
 public sealed class AlertDeliveryConfiguration : IEntityTypeConfiguration<AlertDelivery>
 {
     public void Configure(EntityTypeBuilder<AlertDelivery> builder)

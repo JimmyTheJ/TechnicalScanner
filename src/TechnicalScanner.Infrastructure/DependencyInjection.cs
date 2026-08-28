@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using TechnicalScanner.Application;
 using TechnicalScanner.Application.Abstractions;
+using TechnicalScanner.Application.Models.Profiles;
 using TechnicalScanner.Application.Options;
 using TechnicalScanner.Domain.Entities;
 using TechnicalScanner.Infrastructure.MarketData;
@@ -89,22 +90,21 @@ internal static class SeedData
 {
     public static async Task SeedAsync(TechnicalScannerDbContext db, CancellationToken cancellationToken)
     {
-        if (!await db.IndicatorDefinitions.AnyAsync(cancellationToken))
-        {
-            db.IndicatorDefinitions.AddRange(
-                Definition("BMSB_W", "Bull Market Support Band", "BMSB", "W", new { smaPeriod = 20, emaPeriod = 21 }),
-                Definition("RSI_14_D", "Daily RSI 14", "RSI", "D", new { period = 14 }),
-                Definition("RSI_14_W", "Weekly RSI 14", "RSI", "W", new { period = 14 }),
-                Definition("RSI_14_M", "Monthly RSI 14", "RSI", "M", new { period = 14 }),
-                Definition("SMA_50_W", "50 Week SMA", "SMA", "W", new { period = 50 }),
-                Definition("SMA_100_W", "100 Week SMA", "SMA", "W", new { period = 100 }),
-                Definition("SMA_200_W", "200 Week SMA", "SMA", "W", new { period = 200 }),
-                Definition("SMA_200_D", "200 Day SMA", "SMA", "D", new { period = 200 }),
-                Definition("EMA_21_W", "21 Week EMA", "EMA", "W", new { period = 21 }),
-                Definition("BB_20_2_D", "Daily Bollinger Bands 20/2", "BOLLINGER_BANDS", "D", new { period = 20, stdDevMultiplier = 2 }),
-                Definition("BB_20_2_W", "Weekly Bollinger Bands 20/2", "BOLLINGER_BANDS", "W", new { period = 20, stdDevMultiplier = 2 }),
-                Definition("BB_20_2_M", "Monthly Bollinger Bands 20/2", "BOLLINGER_BANDS", "M", new { period = 20, stdDevMultiplier = 2 }));
-        }
+        EnsureIndicator(db, "BMSB_W", "Bull Market Support Band", "BMSB", "W", new { smaPeriod = 20, emaPeriod = 21 });
+        EnsureIndicator(db, "RSI_14_D", "Daily RSI 14", "RSI", "D", new { period = 14 });
+        EnsureIndicator(db, "RSI_14_W", "Weekly RSI 14", "RSI", "W", new { period = 14 });
+        EnsureIndicator(db, "RSI_14_M", "Monthly RSI 14", "RSI", "M", new { period = 14 });
+        EnsureIndicator(db, "SMA_50_W", "50 Week SMA", "SMA", "W", new { period = 50 });
+        EnsureIndicator(db, "SMA_100_W", "100 Week SMA", "SMA", "W", new { period = 100 });
+        EnsureIndicator(db, "SMA_200_W", "200 Week SMA", "SMA", "W", new { period = 200 });
+        EnsureIndicator(db, "SMA_200_D", "200 Day SMA", "SMA", "D", new { period = 200 });
+        EnsureIndicator(db, "EMA_21_W", "21 Week EMA", "EMA", "W", new { period = 21 });
+        EnsureIndicator(db, "BB_20_2_D", "Daily Bollinger Bands 20/2", "BOLLINGER_BANDS", "D", new { period = 20, stdDevMultiplier = 2 });
+        EnsureIndicator(db, "BB_20_2_W", "Weekly Bollinger Bands 20/2", "BOLLINGER_BANDS", "W", new { period = 20, stdDevMultiplier = 2 });
+        EnsureIndicator(db, "BB_20_2_M", "Monthly Bollinger Bands 20/2", "BOLLINGER_BANDS", "M", new { period = 20, stdDevMultiplier = 2 });
+        EnsureIndicator(db, "VOL_SMA_20_D", "20 Day Volume SMA", "VOLUME", "D", new { period = 20 });
+        EnsureIndicator(db, "ATR_14_D", "14 Day ATR", "ATR", "D", new { period = 14 });
+        EnsureIndicator(db, "RANGE_252_D", "252 Day High/Low Range", "PRICE_RANGE", "D", new { period = 252 });
 
         if (!await db.SignalDefinitions.AnyAsync(cancellationToken))
         {
@@ -120,8 +120,134 @@ internal static class SeedData
                 Signal("RSI_W_ABOVE_50", "Weekly RSI Above 50", "RSI_14_W", "rsi", ">=", 50));
         }
 
+        EnsureProfile(
+            db,
+            "DEEP_PULLBACK",
+            "Deep Pullback",
+            "Ranks washouts using BMSB, RSI, 200D SMA, 50W SMA, and daily Bollinger.",
+            new ProfileUniverse { IncludeEtfs = true },
+            [
+                Spec("BMSB_W"),
+                Spec("RSI_14_D"),
+                Spec("RSI_14_W"),
+                Spec("SMA_200_D"),
+                Spec("SMA_50_W"),
+                Spec("BB_20_2_D")
+            ],
+            """{"all":[]}""",
+            [
+                Weight("belowBmsb", "BMSB_W", "status", "=", "BelowBand", 2),
+                Weight("dailyRsiOversold", "RSI_14_D", "rsi", "<", 30, 1),
+                Weight("weeklyRsiWeak", "RSI_14_W", "rsi", "<", 40, 1),
+                Weight("below200dSma", "SMA_200_D", "distanceFromSmaPct", "<", 0, 1),
+                Weight("below50wSma", "SMA_50_W", "distanceFromSmaPct", "<", 0, 1),
+                Weight("belowDailyBbLower", "BB_20_2_D", "status", "=", "CloseBelowLowerBand", 1)
+            ]);
+
+        EnsureProfile(
+            db,
+            "CHEAP_VS_MA",
+            "Cheap vs moving averages",
+            "Close below the 200-day SMA, 50-week SMA, and 21-week EMA.",
+            new ProfileUniverse { IncludeEtfs = true },
+            [Spec("SMA_200_D"), Spec("SMA_50_W"), Spec("EMA_21_W")],
+            """
+            {"all":[
+              {"indicatorCode":"SMA_200_D","field":"distanceFromSmaPct","operator":"<","value":0},
+              {"indicatorCode":"SMA_50_W","field":"closeBelowSma","operator":"=","value":true},
+              {"indicatorCode":"EMA_21_W","field":"distanceFromEmaPct","operator":"<","value":0}
+            ]}
+            """,
+            [
+                Weight("below200d", "SMA_200_D", "distanceFromSmaPct", "<", 0, 1),
+                Weight("below50w", "SMA_50_W", "closeBelowSma", "=", true, 1),
+                Weight("below21wEma", "EMA_21_W", "distanceFromEmaPct", "<", 0, 1)
+            ]);
+
+        EnsureProfile(
+            db,
+            "VOLUME_CONFIRMED_CHEAP",
+            "Volume-confirmed cheap",
+            "At least 10% below the 200-day SMA, daily RSI under 40, and relative volume above 1.5.",
+            new ProfileUniverse { IncludeEtfs = true },
+            [Spec("SMA_200_D"), Spec("RSI_14_D"), Spec("VOL_SMA_20_D")],
+            """
+            {"all":[
+              {"indicatorCode":"SMA_200_D","field":"distanceFromSmaPct","operator":"<","value":-10},
+              {"indicatorCode":"RSI_14_D","field":"rsi","operator":"<","value":40},
+              {"indicatorCode":"VOL_SMA_20_D","field":"relativeVolume","operator":">","value":1.5}
+            ]}
+            """,
+            [
+                Weight("deepVs200d", "SMA_200_D", "distanceFromSmaPct", "<", -10, 2),
+                Weight("weakRsi", "RSI_14_D", "rsi", "<", 40, 1),
+                Weight("highRelativeVolume", "VOL_SMA_20_D", "relativeVolume", ">", 1.5, 1)
+            ]);
+
         await db.SaveChangesAsync(cancellationToken);
     }
+
+    private static void EnsureIndicator(
+        TechnicalScannerDbContext db,
+        string code,
+        string name,
+        string type,
+        string timeframe,
+        object parameters)
+    {
+        if (db.IndicatorDefinitions.Any(d => d.Code == code))
+        {
+            return;
+        }
+
+        db.Add(Definition(code, name, type, timeframe, parameters));
+    }
+
+    private static void EnsureProfile(
+        TechnicalScannerDbContext db,
+        string code,
+        string name,
+        string description,
+        ProfileUniverse universe,
+        IReadOnlyList<ProfileIndicatorSpec> indicators,
+        string ruleJson,
+        IReadOnlyList<ScoreWeightSpec> weights)
+    {
+        if (db.ScanProfiles.Any(p => p.Code == code))
+        {
+            return;
+        }
+
+        db.Add(new ScanProfile
+        {
+            Code = code,
+            Name = name,
+            Description = description,
+            UniverseJson = ProfileJson.Serialize(universe),
+            IndicatorsJson = ProfileJson.Serialize(indicators),
+            RuleJson = ruleJson,
+            ScoreWeightsJson = ProfileJson.Serialize(weights)
+        });
+    }
+
+    private static ProfileIndicatorSpec Spec(string code) => new() { Code = code };
+
+    private static ScoreWeightSpec Weight(
+        string label,
+        string indicatorCode,
+        string field,
+        string op,
+        object value,
+        decimal weight)
+        => new()
+        {
+            Label = label,
+            IndicatorCode = indicatorCode,
+            Field = field,
+            Operator = op,
+            Value = JsonSerializer.SerializeToElement(value),
+            Weight = weight
+        };
 
     private static IndicatorDefinition Definition(string code, string name, string type, string timeframe, object parameters)
         => new()

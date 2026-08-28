@@ -17,6 +17,9 @@ public static class DependencyInjection
         services.AddSingleton<IIndicatorCalculator, SmaIndicatorCalculator>();
         services.AddSingleton<IIndicatorCalculator, EmaIndicatorCalculator>();
         services.AddSingleton<IIndicatorCalculator, BollingerBandsIndicatorCalculator>();
+        services.AddSingleton<IIndicatorCalculator, VolumeIndicatorCalculator>();
+        services.AddSingleton<IIndicatorCalculator, AtrIndicatorCalculator>();
+        services.AddSingleton<IIndicatorCalculator, PriceRangeIndicatorCalculator>();
         services.AddSingleton<IndicatorCalculatorRegistry>();
         services.AddScoped<SignalRuleEvaluator>();
         services.AddScoped<ITickerOperationLogger, TickerOperationLogger>();
@@ -34,6 +37,8 @@ public static class DependencyInjection
         services.AddScoped<IndicatorQueryService>();
         services.AddScoped<SignalQueryService>();
         services.AddScoped<ScreenerQueryService>();
+        services.AddScoped<ScanProfileQueryService>();
+        services.AddScoped<ProfileBacktestService>();
         services.AddScoped<BreadthQueryService>();
         services.AddScoped<ScannerQueryService>();
         services.AddScoped<AlertQueryService>();

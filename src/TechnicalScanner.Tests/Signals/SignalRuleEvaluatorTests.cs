@@ -66,4 +66,28 @@ public class SignalRuleEvaluatorTests
 
         Assert.True(evaluator.Evaluate(rule, values));
     }
+
+    [Fact]
+    public void Evaluate_NumericStringThreshold_ComparesAsDecimal()
+    {
+        var evaluator = new SignalRuleEvaluator();
+        var values = new Dictionary<string, Dictionary<string, System.Text.Json.JsonElement>>
+        {
+            ["SMA_200_D"] = new()
+            {
+                ["distanceFromSmaPct"] = System.Text.Json.JsonSerializer.SerializeToElement(-5m)
+            }
+        };
+
+        var rule = """
+            {
+              "indicatorCode": "SMA_200_D",
+              "field": "distanceFromSmaPct",
+              "operator": "<",
+              "value": "0"
+            }
+            """;
+
+        Assert.True(evaluator.Evaluate(rule, values));
+    }
 }

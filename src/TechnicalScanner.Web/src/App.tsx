@@ -5,6 +5,7 @@ import { OverviewPage } from './pages/OverviewPage'
 import { ScreenerPage } from './pages/ScreenerPage'
 import { StockDetailPage } from './pages/StockDetailPage'
 import { WatchlistsPage } from './pages/WatchlistsPage'
+import { ProfilesPage } from './pages/ProfilesPage'
 
 export default function App() {
   return (
@@ -13,6 +14,7 @@ export default function App() {
         <Route element={<Layout />}>
           <Route index element={<OverviewPage />} />
           <Route path="screener" element={<ScreenerPage />} />
+          <Route path="profiles" element={<ProfilesPage />} />
           <Route path="breadth" element={<BreadthPage />} />
           <Route path="watchlists" element={<WatchlistsPage />} />
           <Route path="stocks/:symbol" element={<StockDetailPage />} />

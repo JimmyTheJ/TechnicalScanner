@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
+using TechnicalScanner.Application.Indicators;
 using TechnicalScanner.Application.Models.Queries;
 using TechnicalScanner.Application.Services.Queries;
 using TechnicalScanner.Domain.Entities;
@@ -10,6 +11,10 @@ namespace TechnicalScanner.Api.Controllers;
 [Route("api/indicators")]
 public sealed class IndicatorsController(IndicatorQueryService indicatorQueryService) : ControllerBase
 {
+    [HttpGet("catalog")]
+    [ProducesResponseType(typeof(IReadOnlyList<IndicatorTypeCatalogEntry>), StatusCodes.Status200OK)]
+    public IActionResult GetCatalog() => Ok(IndicatorTypeCatalog.Entries);
+
     [HttpGet("definitions")]
     [ProducesResponseType(typeof(IReadOnlyList<IndicatorDefinition>), StatusCodes.Status200OK)]
     public IActionResult GetDefinitions()

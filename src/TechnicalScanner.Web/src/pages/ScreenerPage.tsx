@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { api } from '../api/client'
-import type { PagedResult, ScreenerFilters, ScreenerRow, SignalDefinition } from '../api/types'
+import type { PagedResult, ScanProfile, ScreenerFilters, ScreenerRow, SignalDefinition } from '../api/types'
 import { ScreenerTable } from '../components/ScreenerTable'
 import { ErrorState, LoadingState } from '../components/StateBlocks'
 import { exportScreenerToCsv } from '../utils/csv'
@@ -11,6 +11,7 @@ const defaultFilters: ScreenerFilters = {
   sort: 'compositeScoreDesc',
   page: 1,
   pageSize: 50,
+  profileMatchOnly: true,
 }
 
 export function ScreenerPage() {
@@ -18,12 +19,14 @@ export function ScreenerPage() {
   const [filters, setFilters] = useState<ScreenerFilters>(() => readFilters(searchParams))
   const [result, setResult] = useState<PagedResult<ScreenerRow> | null>(null)
   const [signals, setSignals] = useState<SignalDefinition[]>([])
+  const [profiles, setProfiles] = useState<ScanProfile[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [saveName, setSaveName] = useState('')
 
   useEffect(() => {
     void api.getSignalDefinitions().then(setSignals).catch(() => setSignals([]))
+    void api.getProfiles().then(setProfiles).catch(() => setProfiles([]))
   }, [])
 
   useEffect(() => {
@@ -106,6 +109,27 @@ export function ScreenerPage() {
               <option value="">All</option>
               <option value="US">US</option>
               <option value="CA">CA</option>
+            </select>
+          </label>
+          <label>
+            Profile
+            <select value={filters.profile ?? ''} onChange={(e) => updateFilter('profile', e.target.value || undefined)}>
+              <option value="">None</option>
+              {profiles.map((profile) => (
+                <option key={profile.code} value={profile.code}>
+                  {profile.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Profile matches only
+            <select
+              value={filters.profileMatchOnly === false ? 'no' : 'yes'}
+              onChange={(e) => updateFilter('profileMatchOnly', e.target.value === 'yes')}
+            >
+              <option value="yes">Yes</option>
+              <option value="no">No</option>
             </select>
           </label>
           <label>
@@ -233,6 +257,8 @@ function readFilters(params: URLSearchParams): ScreenerFilters {
     exchange: params.get('exchange') ?? undefined,
     sector: params.get('sector') ?? undefined,
     signal: params.get('signal') ?? undefined,
+    profile: params.get('profile') ?? undefined,
+    profileMatchOnly: params.get('profileMatchOnly') !== 'false',
     bmsbStatus: params.get('bmsbStatus') ?? undefined,
     search: params.get('search') ?? undefined,
     sort: params.get('sort') ?? 'compositeScoreDesc',

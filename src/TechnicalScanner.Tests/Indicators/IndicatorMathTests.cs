@@ -46,4 +46,16 @@ public class IndicatorMathTests
         Assert.Equal("Oversold", IndicatorMath.ClassifyRsi(25));
         Assert.Equal("Overbought", IndicatorMath.ClassifyRsi(72));
     }
+
+    [Fact]
+    public void TrueRange_UsesHighLowWhenNoPriorClose()
+    {
+        Assert.Equal(5m, IndicatorMath.TrueRange(12, 7, null));
+    }
+
+    [Fact]
+    public void TrueRange_IncludesGapsFromPriorClose()
+    {
+        Assert.Equal(8m, IndicatorMath.TrueRange(12, 10, 4));
+    }
 }
