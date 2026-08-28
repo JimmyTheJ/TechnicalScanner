@@ -257,6 +257,38 @@ export interface ProfileBacktestResult {
   entries: ProfileBacktestHit[]
 }
 
+export interface ProfileUniverseBacktestHit {
+  symbol: string
+  entryDate: string
+  close: number
+  forwardReturnPct?: number
+  score?: number
+}
+
+export interface ProfileUniverseBacktest {
+  runId: number
+  profileCode: string
+  status: string
+  startedUtc: string
+  completedUtc?: string
+  forwardDays: number
+  fromDate?: string
+  toDate?: string
+  tickerCount: number
+  tickersWithEntries: number
+  entryCount: number
+  matchDays: number
+  medianForwardReturnPct?: number
+  meanForwardReturnPct?: number
+  errorMessage?: string
+  sampleEntries: ProfileUniverseBacktestHit[]
+}
+
+export interface IndicatorCalculationResult {
+  calculated: number
+  codes: string[]
+}
+
 export interface SectorHeatmapCell {
   sector: string
   tickerCount: number

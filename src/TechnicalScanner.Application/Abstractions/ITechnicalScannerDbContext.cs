@@ -17,6 +17,8 @@ public interface ITechnicalScannerDbContext
     IQueryable<AlertEvent> AlertEvents { get; }
     IQueryable<AlertDelivery> AlertDeliveries { get; }
     IQueryable<ScanProfile> ScanProfiles { get; }
+    IQueryable<ProfileBacktestRun> ProfileBacktestRuns { get; }
+    IQueryable<ProfileBacktestHit> ProfileBacktestHits { get; }
 
     void Add<TEntity>(TEntity entity) where TEntity : class;
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);

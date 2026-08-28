@@ -6,6 +6,7 @@ import type {
   IndicatorTypeCatalogEntry,
   PagedResult,
   ProfileBacktestResult,
+  ProfileUniverseBacktest,
   ScanProfile,
   ScannerLatest,
   ScreenerFilters,
@@ -159,6 +160,21 @@ export const api = {
   backtestProfile: (code: string, ticker: string, forwardDays = 20) =>
     getJson<ProfileBacktestResult>(
       `/api/profiles/${encodeURIComponent(code)}/backtest${buildQuery({ ticker, forwardDays })}`,
+    ),
+
+  getUniverseBacktest: (code: string) =>
+    getJson<ProfileUniverseBacktest>(`/api/profiles/${encodeURIComponent(code)}/universe-backtest`),
+
+  runUniverseBacktest: (code: string, forwardDays = 20) =>
+    sendJson<ProfileUniverseBacktest>(
+      `/api/profiles/${encodeURIComponent(code)}/universe-backtest${buildQuery({ forwardDays })}`,
+      'POST',
+    ),
+
+  calculateIndicators: (params: { code?: string; pending?: boolean }) =>
+    sendJson<{ calculated: number; codes: string[] }>(
+      `/api/indicators/calculate${buildQuery({ code: params.code, pending: params.pending })}`,
+      'POST',
     ),
 
   getBreadthLatest: () => getJson<BreadthSnapshot[]>('/api/breadth/latest'),

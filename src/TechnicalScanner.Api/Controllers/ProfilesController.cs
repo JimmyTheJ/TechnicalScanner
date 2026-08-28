@@ -116,4 +116,33 @@ public sealed class ProfilesController(
             return NotFound(new { error = ex.Message });
         }
     }
+
+    [HttpGet("{code}/universe-backtest")]
+    [ProducesResponseType(typeof(ProfileUniverseBacktestDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public IActionResult GetUniverseBacktest(string code)
+    {
+        var result = profileBacktestService.GetLatestUniverse(code);
+        return result is null ? NotFound() : Ok(result);
+    }
+
+    [HttpPost("{code}/universe-backtest")]
+    [ProducesResponseType(typeof(ProfileUniverseBacktestDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> RunUniverseBacktest(
+        string code,
+        [FromQuery] int forwardDays = 20,
+        [FromQuery] DateOnly? from = null,
+        [FromQuery] DateOnly? to = null,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return Ok(await profileBacktestService.RunUniverseAsync(code, forwardDays, from, to, cancellationToken));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(new { error = ex.Message });
+        }
+    }
 }

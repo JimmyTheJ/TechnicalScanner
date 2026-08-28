@@ -5,11 +5,13 @@ import type {
   IndicatorDefinition,
   IndicatorTypeCatalogEntry,
   ProfileIndicatorSpec,
+  ProfileUniverseBacktest,
   ScanProfile,
   ScoreWeightSpec,
   UpsertScanProfileRequest,
 } from '../api/types'
 import { ErrorState, LoadingState } from '../components/StateBlocks'
+import { formatDate, formatNumber, formatPercent } from '../utils/format'
 
 interface Condition {
   indicatorCode: string
@@ -49,6 +51,9 @@ export function ProfilesPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [calculating, setCalculating] = useState(false)
+  const [universeBacktest, setUniverseBacktest] = useState<ProfileUniverseBacktest | null>(null)
+  const [runningUniverse, setRunningUniverse] = useState(false)
 
   async function reload() {
     const [profileRows, catalogRows, definitionRows] = await Promise.all([
@@ -96,6 +101,7 @@ export function ProfilesPage() {
     setMatchMode('all')
     setUseRawRule(false)
     setNotice(null)
+    setUniverseBacktest(null)
   }
 
   function loadProfile(profile: ScanProfile) {
@@ -121,9 +127,13 @@ export function ProfilesPage() {
     setConditions(parsed.conditions)
     setNotice(
       profile.missingCalculationCodes.length
-        ? `Needs calculation: ${profile.missingCalculationCodes.join(', ')}. Run worker calculate-indicators --code CODE`
+        ? `Needs calculation: ${profile.missingCalculationCodes.join(', ')}.`
         : null,
     )
+    void api
+      .getUniverseBacktest(profile.code)
+      .then(setUniverseBacktest)
+      .catch(() => setUniverseBacktest(null))
   }
 
   function addExistingIndicator() {
@@ -204,6 +214,48 @@ export function ProfilesPage() {
     }
   }
 
+  async function calculateMissing() {
+    const codes = profiles.find((item) => item.code === selectedCode)?.missingCalculationCodes ?? []
+    if (codes.length === 0) {
+      return
+    }
+
+    try {
+      setCalculating(true)
+      for (const code of codes) {
+        await api.calculateIndicators({ code })
+      }
+      await reload()
+      const refreshed = (await api.getProfiles()).find((item) => item.code === selectedCode)
+      if (refreshed) {
+        loadProfile(refreshed)
+      }
+      setNotice(`Calculated ${codes.join(', ')}.`)
+      setError(null)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to calculate indicators')
+    } finally {
+      setCalculating(false)
+    }
+  }
+
+  async function runUniverseBacktest() {
+    if (!selectedCode) {
+      return
+    }
+
+    try {
+      setRunningUniverse(true)
+      const result = await api.runUniverseBacktest(selectedCode, 20)
+      setUniverseBacktest(result)
+      setError(null)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to run universe backtest')
+    } finally {
+      setRunningUniverse(false)
+    }
+  }
+
   async function deactivate() {
     if (!selectedCode) {
       return
@@ -266,6 +318,11 @@ export function ProfilesPage() {
               {selectedCode ? (
                 <button type="button" className="button secondary" onClick={() => void deactivate()}>
                   Deactivate
+                </button>
+              ) : null}
+              {selectedCode && (profiles.find((item) => item.code === selectedCode)?.missingCalculationCodes.length ?? 0) > 0 ? (
+                <button type="button" className="button secondary" onClick={() => void calculateMissing()} disabled={calculating}>
+                  {calculating ? 'Calculating…' : 'Calculate missing'}
                 </button>
               ) : null}
               <button type="button" className="button" onClick={() => void save()} disabled={saving}>
@@ -591,6 +648,60 @@ export function ProfilesPage() {
           Add weight
         </button>
       </section>
+
+      {selectedCode ? (
+        <section className="panel-card">
+          <div className="panel-header">
+            <h3>Universe replay</h3>
+            <button type="button" className="button secondary" onClick={() => void runUniverseBacktest()} disabled={runningUniverse}>
+              {runningUniverse ? 'Replaying…' : 'Replay universe'}
+            </button>
+          </div>
+          {universeBacktest ? (
+            <>
+              <p className="muted">
+                {universeBacktest.status} · {universeBacktest.tickersWithEntries}/{universeBacktest.tickerCount} tickers with
+                entries · {universeBacktest.entryCount} entries · {universeBacktest.matchDays} matching days · median{' '}
+                {formatPercent(universeBacktest.medianForwardReturnPct)} / mean {formatPercent(universeBacktest.meanForwardReturnPct)}{' '}
+                over {universeBacktest.forwardDays}d
+                {universeBacktest.completedUtc ? ` · ${formatDate(universeBacktest.completedUtc)}` : ''}
+              </p>
+              {universeBacktest.sampleEntries.length > 0 ? (
+                <div className="table-wrap">
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>Symbol</th>
+                        <th>Entry</th>
+                        <th>Close</th>
+                        <th>Fwd %</th>
+                        <th>Score</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {universeBacktest.sampleEntries.map((hit) => (
+                        <tr key={`${hit.symbol}-${hit.entryDate}`}>
+                          <td>
+                            <Link to={`/stocks/${encodeURIComponent(hit.symbol)}`}>{hit.symbol}</Link>
+                          </td>
+                          <td>{hit.entryDate}</td>
+                          <td>{formatNumber(hit.close)}</td>
+                          <td>{formatPercent(hit.forwardReturnPct)}</td>
+                          <td>{formatNumber(hit.score, 1)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p className="muted">No entries stored for this run yet.</p>
+              )}
+            </>
+          ) : (
+            <p className="muted">No stored universe backtest yet. Replay writes candle-dated entries and forward returns.</p>
+          )}
+        </section>
+      ) : null}
     </div>
   )
 

@@ -105,3 +105,38 @@ public sealed class ProfileBacktestResultDto
     public int ForwardDays { get; init; }
     public IReadOnlyList<ProfileBacktestHitDto> Entries { get; init; } = [];
 }
+
+public sealed class ProfileUniverseBacktestHitDto
+{
+    public required string Symbol { get; init; }
+    public DateOnly EntryDate { get; init; }
+    public decimal Close { get; init; }
+    public decimal? ForwardReturnPct { get; init; }
+    public decimal? Score { get; init; }
+}
+
+public sealed class ProfileUniverseBacktestDto
+{
+    public long RunId { get; init; }
+    public required string ProfileCode { get; init; }
+    public required string Status { get; init; }
+    public DateTimeOffset StartedUtc { get; init; }
+    public DateTimeOffset? CompletedUtc { get; init; }
+    public int ForwardDays { get; init; }
+    public DateOnly? FromDate { get; init; }
+    public DateOnly? ToDate { get; init; }
+    public int TickerCount { get; init; }
+    public int TickersWithEntries { get; init; }
+    public int EntryCount { get; init; }
+    public int MatchDays { get; init; }
+    public decimal? MedianForwardReturnPct { get; init; }
+    public decimal? MeanForwardReturnPct { get; init; }
+    public string? ErrorMessage { get; init; }
+    public IReadOnlyList<ProfileUniverseBacktestHitDto> SampleEntries { get; init; } = [];
+}
+
+public sealed class IndicatorCalculationResultDto
+{
+    public int Calculated { get; init; }
+    public IReadOnlyList<string> Codes { get; init; } = [];
+}

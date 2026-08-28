@@ -30,7 +30,8 @@ public sealed class IndicatorQueryService(ITechnicalScannerDbContext dbContext)
             Description = request.Description,
             IndicatorType = request.IndicatorType,
             Timeframe = request.Timeframe,
-            ParametersJson = request.ParametersJson
+            ParametersJson = request.ParametersJson,
+            NeedsRecalculation = true
         };
 
         dbContext.Add(definition);

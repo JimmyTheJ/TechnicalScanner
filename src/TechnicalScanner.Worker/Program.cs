@@ -42,8 +42,28 @@ switch (command)
     case "calculate-indicators":
     {
         var code = ParseStringOption(args, "--code", null);
+        var pending = args.Contains("--pending");
         await services.GetRequiredService<IndicatorCalculationService>()
-            .CalculateAsync(code, CancellationToken.None);
+            .CalculateAsync(code, pending, CancellationToken.None);
+        break;
+    }
+    case "backtest-profile":
+    {
+        var code = ParseStringOption(args, "--code", null);
+        if (string.IsNullOrWhiteSpace(code))
+        {
+            Console.WriteLine("--code is required for backtest-profile.");
+            Environment.ExitCode = 1;
+            break;
+        }
+
+        var forwardDays = ParseIntOption(args, "--forward-days", 20);
+        var from = ParseDateOption(args, "--from");
+        var to = ParseDateOption(args, "--to");
+        var result = await services.GetRequiredService<ProfileBacktestService>()
+            .RunUniverseAsync(code, forwardDays, from, to, CancellationToken.None);
+        Console.WriteLine(
+            $"Universe backtest {result.RunId} for {result.ProfileCode}: {result.EntryCount} entries across {result.TickersWithEntries}/{result.TickerCount} tickers, median {result.MedianForwardReturnPct:0.##}% forward {result.ForwardDays}d.");
         break;
     }
     case "evaluate-signals":
@@ -114,7 +134,8 @@ static void PrintUsage()
           import-tickers
           update-prices --years 10 [--full]
           aggregate-candles --timeframes W,M
-          calculate-indicators [--code SMA_20_D]
+          calculate-indicators [--code SMA_20_D] [--pending]
+          backtest-profile --code DEEP_PULLBACK [--forward-days 20] [--from 2016-01-01] [--to 2026-01-01]
           evaluate-signals
           calculate-scores
           calculate-breadth
@@ -156,6 +177,17 @@ static long? ParseLongOption(string[] args, string optionName, long? defaultValu
     }
 
     return defaultValue;
+}
+
+static DateOnly? ParseDateOption(string[] args, string optionName)
+{
+    var value = ParseStringOption(args, optionName, null);
+    if (value is null)
+    {
+        return null;
+    }
+
+    return DateOnly.TryParse(value, out var parsed) ? parsed : null;
 }
 
 static IEnumerable<Timeframe> ParseTimeframes(string[] args)

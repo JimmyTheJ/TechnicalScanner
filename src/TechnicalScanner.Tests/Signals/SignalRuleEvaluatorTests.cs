@@ -90,4 +90,26 @@ public class SignalRuleEvaluatorTests
 
         Assert.True(evaluator.Evaluate(rule, values));
     }
+
+    [Fact]
+    public void CollectIndicatorCodes_WalksAllAnyAndNot()
+    {
+        var rule = """
+            {
+              "all": [
+                { "indicatorCode": "SMA_200_D", "field": "distanceFromSmaPct", "operator": "<", "value": 0 },
+                {
+                  "any": [
+                    { "indicatorCode": "RSI_14_D", "field": "rsi", "operator": "<", "value": 30 },
+                    { "not": { "indicatorCode": "BMSB_W", "field": "status", "operator": "=", "value": "AboveBand" } }
+                  ]
+                }
+              ]
+            }
+            """;
+
+        var codes = SignalRuleEvaluator.CollectIndicatorCodes(rule);
+
+        Assert.Equal(["BMSB_W", "RSI_14_D", "SMA_200_D"], codes);
+    }
 }

@@ -10,6 +10,60 @@ public sealed class SignalRuleEvaluator
         return EvaluateNode(document.RootElement, indicatorValues);
     }
 
+    public static IReadOnlyList<string> CollectIndicatorCodes(string ruleJson)
+    {
+        if (string.IsNullOrWhiteSpace(ruleJson))
+        {
+            return [];
+        }
+
+        using var document = JsonDocument.Parse(ruleJson);
+        var codes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        CollectIndicatorCodes(document.RootElement, codes);
+        return codes.OrderBy(code => code, StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    private static void CollectIndicatorCodes(JsonElement node, ISet<string> codes)
+    {
+        if (node.ValueKind != JsonValueKind.Object)
+        {
+            return;
+        }
+
+        if (node.TryGetProperty("all", out var all))
+        {
+            foreach (var child in all.EnumerateArray())
+            {
+                CollectIndicatorCodes(child, codes);
+            }
+
+            return;
+        }
+
+        if (node.TryGetProperty("any", out var any))
+        {
+            foreach (var child in any.EnumerateArray())
+            {
+                CollectIndicatorCodes(child, codes);
+            }
+
+            return;
+        }
+
+        if (node.TryGetProperty("not", out var not))
+        {
+            CollectIndicatorCodes(not, codes);
+            return;
+        }
+
+        if (node.TryGetProperty("indicatorCode", out var code) &&
+            code.ValueKind == JsonValueKind.String &&
+            !string.IsNullOrWhiteSpace(code.GetString()))
+        {
+            codes.Add(code.GetString()!);
+        }
+    }
+
     private static bool EvaluateNode(
         JsonElement node,
         IReadOnlyDictionary<string, Dictionary<string, JsonElement>> indicatorValues)

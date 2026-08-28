@@ -77,6 +77,16 @@ public class ProfileScoringAndReplayTests
         Assert.Equal(new DateOnly(2024, 1, 5), result.Entries[1].Date);
     }
 
+    [Fact]
+    public void Stats_MedianAndMean_HandleEvenOddAndEmpty()
+    {
+        Assert.Null(ProfileBacktestStats.Median([]));
+        Assert.Null(ProfileBacktestStats.Mean([]));
+        Assert.Equal(2m, ProfileBacktestStats.Median([1, 2, 3]));
+        Assert.Equal(2.5m, ProfileBacktestStats.Median([1, 2, 3, 4]));
+        Assert.Equal(2m, ProfileBacktestStats.Mean([1, 2, 3]));
+    }
+
     private static ScoreWeightSpec Weight(
         string label,
         string code,

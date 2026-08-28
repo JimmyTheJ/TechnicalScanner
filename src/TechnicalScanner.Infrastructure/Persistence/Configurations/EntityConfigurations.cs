@@ -159,6 +159,34 @@ public sealed class ScanProfileConfiguration : IEntityTypeConfiguration<ScanProf
     }
 }
 
+public sealed class ProfileBacktestRunConfiguration : IEntityTypeConfiguration<ProfileBacktestRun>
+{
+    public void Configure(EntityTypeBuilder<ProfileBacktestRun> builder)
+    {
+        builder.ToTable("profile_backtest_run");
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.ProfileCode).IsRequired();
+        builder.Property(x => x.Status).IsRequired();
+        builder.HasIndex(x => new { x.ProfileCode, x.StartedUtc });
+        builder.HasMany(x => x.Hits)
+            .WithOne(x => x.Run)
+            .HasForeignKey(x => x.ProfileBacktestRunId)
+            .OnDelete(DeleteBehavior.Cascade);
+    }
+}
+
+public sealed class ProfileBacktestHitConfiguration : IEntityTypeConfiguration<ProfileBacktestHit>
+{
+    public void Configure(EntityTypeBuilder<ProfileBacktestHit> builder)
+    {
+        builder.ToTable("profile_backtest_hit");
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.Symbol).IsRequired();
+        builder.HasIndex(x => new { x.ProfileBacktestRunId, x.TickerId, x.EntryDate }).IsUnique();
+        builder.HasIndex(x => new { x.ProfileBacktestRunId, x.Score });
+    }
+}
+
 public sealed class AlertDeliveryConfiguration : IEntityTypeConfiguration<AlertDelivery>
 {
     public void Configure(EntityTypeBuilder<AlertDelivery> builder)

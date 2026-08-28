@@ -10,6 +10,7 @@ public class IndicatorDefinition
     public required string Timeframe { get; set; }
     public required string ParametersJson { get; set; }
     public bool IsActive { get; set; } = true;
+    public bool NeedsRecalculation { get; set; }
     public DateTimeOffset CreatedUtc { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset UpdatedUtc { get; set; } = DateTimeOffset.UtcNow;
 

@@ -1,7 +1,9 @@
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using TechnicalScanner.Application.Indicators;
+using TechnicalScanner.Application.Models.Profiles;
 using TechnicalScanner.Application.Models.Queries;
+using TechnicalScanner.Application.Services;
 using TechnicalScanner.Application.Services.Queries;
 using TechnicalScanner.Domain.Entities;
 
@@ -9,7 +11,9 @@ namespace TechnicalScanner.Api.Controllers;
 
 [ApiController]
 [Route("api/indicators")]
-public sealed class IndicatorsController(IndicatorQueryService indicatorQueryService) : ControllerBase
+public sealed class IndicatorsController(
+    IndicatorQueryService indicatorQueryService,
+    IndicatorCalculationService indicatorCalculationService) : ControllerBase
 {
     [HttpGet("catalog")]
     [ProducesResponseType(typeof(IReadOnlyList<IndicatorTypeCatalogEntry>), StatusCodes.Status200OK)]
@@ -72,5 +76,20 @@ public sealed class IndicatorsController(IndicatorQueryService indicatorQuerySer
         }
 
         return Ok(indicatorQueryService.GetHistory(ticker, indicatorCode, from, to));
+    }
+
+    [HttpPost("calculate")]
+    [ProducesResponseType(typeof(IndicatorCalculationResultDto), StatusCodes.Status200OK)]
+    public async Task<IActionResult> Calculate(
+        [FromQuery] string? code,
+        [FromQuery] bool pending = false,
+        CancellationToken cancellationToken = default)
+    {
+        var calculated = await indicatorCalculationService.CalculateAsync(code, pending, cancellationToken);
+        return Ok(new IndicatorCalculationResultDto
+        {
+            Calculated = calculated,
+            Codes = string.IsNullOrWhiteSpace(code) ? [] : [code.Trim().ToUpperInvariant()]
+        });
     }
 }

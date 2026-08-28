@@ -32,14 +32,16 @@ public sealed class ScreenerQueryService(
         }
 
         var tickerIds = tickers.Select(t => t.Id).ToHashSet();
-        tickerIds = ApplyUniverseMarketFilters(tickerIds, universe);
+        tickerIds = ProfileUniverseQuery.ApplyMarketFilters(dbContext, tickerIds, universe);
+        tickerIds = ApplyLatestPrimaryFilters(tickerIds, query);
         tickers = tickers.Where(t => tickerIds.Contains(t.Id)).ToList();
         if (tickers.Count == 0)
         {
             return new PagedResult<ScreenerRowDto>([], page, pageSize, 0);
         }
 
-        var indicatorLookup = BuildLatestIndicatorLookup(tickerIds);
+        var neededCodes = RequiredScreenerCodes(profile, profileIndicators, weights);
+        var indicatorLookup = LatestIndicatorLookup.Load(dbContext, tickerIds, neededCodes);
         var matchedSignals = BuildMatchedSignals(latestScanDate, tickerIds);
         var scoreCode = profile?.Code ?? "DEEP_PULLBACK";
         var scores = BuildLatestScores(tickerIds, scoreCode);
@@ -159,67 +161,99 @@ public sealed class ScreenerQueryService(
         return query;
     }
 
-    private HashSet<long> ApplyUniverseMarketFilters(HashSet<long> tickerIds, ProfileUniverse universe)
+    private HashSet<long> ApplyLatestPrimaryFilters(HashSet<long> tickerIds, ScreenerQuery query)
     {
-        if (universe.MinHistoryDays is > 0)
-        {
-            var cutoff = DateOnly.FromDateTime(DateTime.UtcNow.Date.AddDays(-universe.MinHistoryDays.Value));
-            var oldEnough = dbContext.PriceCandles
-                .Where(p => p.Timeframe == "D" && tickerIds.Contains(p.TickerId))
-                .GroupBy(p => p.TickerId)
-                .Select(g => new { TickerId = g.Key, FirstDate = g.Min(p => p.CandleDate) })
-                .Where(x => x.FirstDate <= cutoff)
-                .Select(x => x.TickerId)
-                .ToHashSet();
-            tickerIds.IntersectWith(oldEnough);
-        }
-
-        if (universe.MinDollarVolume is > 0 && tickerIds.Count > 0)
-        {
-            var latestDates = dbContext.PriceCandles
-                .Where(p => p.Timeframe == "D" && tickerIds.Contains(p.TickerId))
-                .GroupBy(p => p.TickerId)
-                .Select(g => new { TickerId = g.Key, Date = g.Max(p => p.CandleDate) });
-
-            var liquid = (
-                from p in dbContext.PriceCandles
-                join d in latestDates on new { p.TickerId, p.CandleDate } equals new { d.TickerId, CandleDate = d.Date }
-                where p.Timeframe == "D"
-                select new
-                {
-                    p.TickerId,
-                    DollarVolume = (p.AdjustedClose ?? p.Close) * (p.Volume ?? 0)
-                })
-                .AsEnumerable()
-                .Where(x => x.DollarVolume >= universe.MinDollarVolume)
-                .Select(x => x.TickerId)
-                .ToHashSet();
-
-            tickerIds.IntersectWith(liquid);
-        }
-
+        tickerIds = FilterByLatestPrimary(tickerIds, "RSI_14_D", query.MinDailyRsi, query.MaxDailyRsi);
+        tickerIds = FilterByLatestPrimary(tickerIds, "RSI_14_W", query.MinWeeklyRsi, query.MaxWeeklyRsi);
+        tickerIds = FilterByLatestPrimary(tickerIds, "BB_20_2_D", query.MinBollingerPercentB, query.MaxBollingerPercentB);
         return tickerIds;
     }
 
-    private Dictionary<long, Dictionary<string, IndicatorSnapshot>> BuildLatestIndicatorLookup(HashSet<long> tickerIds)
+    private HashSet<long> FilterByLatestPrimary(
+        HashSet<long> tickerIds,
+        string indicatorCode,
+        decimal? min,
+        decimal? max)
     {
-        return dbContext.IndicatorValues
-            .Where(v => tickerIds.Contains(v.TickerId))
-            .Join(dbContext.IndicatorDefinitions, v => v.IndicatorDefinitionId, d => d.Id, (v, d) => new { v, d.Code })
-            .AsEnumerable()
-            .GroupBy(x => (x.v.TickerId, x.Code))
-            .Select(g => g.OrderByDescending(x => x.v.CandleDate).First())
-            .GroupBy(x => x.v.TickerId)
-            .ToDictionary(
-                g => g.Key,
-                g => g.ToDictionary(
-                    x => x.Code,
-                    x => new IndicatorSnapshot(
-                        JsonSerializer.Deserialize<JsonElement>(x.v.ValuesJson),
-                        x.v.PrimaryValue,
-                        x.v.SecondaryValue),
-                    StringComparer.OrdinalIgnoreCase));
+        if (tickerIds.Count == 0 || (min is null && max is null))
+        {
+            return tickerIds;
+        }
+
+        var definitionId = dbContext.IndicatorDefinitions
+            .Where(d => d.Code == indicatorCode)
+            .Select(d => (long?)d.Id)
+            .FirstOrDefault();
+        if (definitionId is null)
+        {
+            return tickerIds;
+        }
+
+        var tickerIdList = tickerIds.ToList();
+        var latestDates = dbContext.IndicatorValues
+            .Where(v => v.IndicatorDefinitionId == definitionId && tickerIdList.Contains(v.TickerId))
+            .GroupBy(v => v.TickerId)
+            .Select(g => new { TickerId = g.Key, Date = g.Max(v => v.CandleDate) });
+
+        var values = from value in dbContext.IndicatorValues
+                     join latest in latestDates on new { value.TickerId, value.CandleDate }
+                         equals new { latest.TickerId, CandleDate = latest.Date }
+                     where value.IndicatorDefinitionId == definitionId
+                     select value;
+
+        if (min is not null)
+        {
+            values = values.Where(v => v.PrimaryValue >= min);
+        }
+
+        if (max is not null)
+        {
+            values = values.Where(v => v.PrimaryValue <= max);
+        }
+
+        return values.Select(v => v.TickerId).ToHashSet();
     }
+
+    private static IReadOnlyList<string> RequiredScreenerCodes(
+        ScanProfile? profile,
+        IReadOnlyList<ProfileIndicatorSpec> profileIndicators,
+        IReadOnlyList<ScoreWeightSpec> weights)
+    {
+        var codes = new HashSet<string>(DisplayIndicatorCodes, StringComparer.OrdinalIgnoreCase);
+        foreach (var spec in profileIndicators)
+        {
+            codes.Add(spec.Code);
+        }
+
+        foreach (var weight in weights)
+        {
+            codes.Add(weight.IndicatorCode);
+        }
+
+        if (profile is not null)
+        {
+            foreach (var code in SignalRuleEvaluator.CollectIndicatorCodes(profile.RuleJson))
+            {
+                codes.Add(code);
+            }
+        }
+
+        return codes.ToList();
+    }
+
+    private static readonly string[] DisplayIndicatorCodes =
+    [
+        "BMSB_W",
+        "RSI_14_D",
+        "RSI_14_W",
+        "RSI_14_M",
+        "SMA_200_D",
+        "SMA_50_W",
+        "SMA_100_W",
+        "SMA_200_W",
+        "BB_20_2_D",
+        "BB_20_2_W"
+    ];
 
     private Dictionary<long, List<string>> BuildMatchedSignals(DateTimeOffset? latestScanDate, HashSet<long> tickerIds)
     {
@@ -254,7 +288,7 @@ public sealed class ScreenerQueryService(
     private static ScreenerRowDto BuildRow(
         Ticker ticker,
         Dictionary<string, JsonElement> indicators,
-        Dictionary<string, IndicatorSnapshot> snapshots,
+        Dictionary<string, LatestIndicatorSnapshot> snapshots,
         IReadOnlyList<ProfileIndicatorSpec> profileIndicators,
         List<string>? matchedSignals,
         decimal? score,
@@ -444,6 +478,4 @@ public sealed class ScreenerQueryService(
             return [];
         }
     }
-
-    private sealed record IndicatorSnapshot(JsonElement Values, decimal? PrimaryValue, decimal? SecondaryValue);
 }

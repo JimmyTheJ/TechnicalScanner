@@ -44,19 +44,35 @@ public sealed class PriceImportService(
                     endDate,
                     cancellationToken);
 
+                var timeframeCode = Timeframe.D.ToCode();
+                var existing = dbContext.PriceCandles
+                    .Where(p =>
+                        p.TickerId == ticker.Id &&
+                        p.Timeframe == timeframeCode &&
+                        p.CandleDate >= startDate &&
+                        p.CandleDate <= endDate)
+                    .ToList()
+                    .ToDictionary(p => p.CandleDate);
+
                 foreach (var candle in candles)
                 {
-                    var existing = dbContext.PriceCandles.FirstOrDefault(p =>
-                        p.TickerId == ticker.Id &&
-                        p.Timeframe == Timeframe.D.ToCode() &&
-                        p.CandleDate == candle.CandleDate);
-
-                    if (existing is null)
+                    if (existing.TryGetValue(candle.CandleDate, out var row))
                     {
-                        dbContext.Add(new PriceCandle
+                        row.Open = candle.Open;
+                        row.High = candle.High;
+                        row.Low = candle.Low;
+                        row.Close = candle.Close;
+                        row.AdjustedClose = candle.AdjustedClose;
+                        row.Volume = candle.Volume;
+                        row.Source = candle.Source;
+                        row.UpdatedUtc = DateTimeOffset.UtcNow;
+                    }
+                    else
+                    {
+                        var added = new PriceCandle
                         {
                             TickerId = ticker.Id,
-                            Timeframe = Timeframe.D.ToCode(),
+                            Timeframe = timeframeCode,
                             CandleDate = candle.CandleDate,
                             Open = candle.Open,
                             High = candle.High,
@@ -65,18 +81,9 @@ public sealed class PriceImportService(
                             AdjustedClose = candle.AdjustedClose,
                             Volume = candle.Volume,
                             Source = candle.Source
-                        });
-                    }
-                    else
-                    {
-                        existing.Open = candle.Open;
-                        existing.High = candle.High;
-                        existing.Low = candle.Low;
-                        existing.Close = candle.Close;
-                        existing.AdjustedClose = candle.AdjustedClose;
-                        existing.Volume = candle.Volume;
-                        existing.Source = candle.Source;
-                        existing.UpdatedUtc = DateTimeOffset.UtcNow;
+                        };
+                        dbContext.Add(added);
+                        existing[candle.CandleDate] = added;
                     }
                 }
 

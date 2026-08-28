@@ -17,13 +17,20 @@ public sealed class ScanProfileQueryService(
             .Where(p => p.IsActive)
             .OrderBy(p => p.Name)
             .ToList();
-        return profiles.Select(ToDto).ToList();
+        var lookup = BuildCalculationLookup(profiles.SelectMany(DeserializeIndicators).Select(spec => spec.Code));
+        return profiles.Select(profile => ToDto(profile, lookup)).ToList();
     }
 
     public ScanProfileDto? GetByCode(string code)
     {
         var profile = Find(code);
-        return profile is null ? null : ToDto(profile);
+        if (profile is null)
+        {
+            return null;
+        }
+
+        var lookup = BuildCalculationLookup(DeserializeIndicators(profile).Select(spec => spec.Code));
+        return ToDto(profile, lookup);
     }
 
     public ScanProfile? Find(string code)
@@ -51,7 +58,8 @@ public sealed class ScanProfileQueryService(
         Apply(entity, request);
         EnsureIndicatorDefinitions(entity);
         dbContext.Add(entity);
-        return ToDto(entity);
+        var lookup = BuildCalculationLookup(DeserializeIndicators(entity).Select(spec => spec.Code));
+        return ToDto(entity, lookup);
     }
 
     public ScanProfileDto Update(string code, UpsertScanProfileRequest request)
@@ -60,7 +68,8 @@ public sealed class ScanProfileQueryService(
         Apply(entity, request);
         entity.UpdatedUtc = DateTimeOffset.UtcNow;
         EnsureIndicatorDefinitions(entity);
-        return ToDto(entity);
+        var lookup = BuildCalculationLookup(DeserializeIndicators(entity).Select(spec => spec.Code));
+        return ToDto(entity, lookup);
     }
 
     public ScanProfileDto Deactivate(string code)
@@ -68,7 +77,8 @@ public sealed class ScanProfileQueryService(
         var entity = Find(code) ?? throw new InvalidOperationException($"Profile '{code}' was not found.");
         entity.IsActive = false;
         entity.UpdatedUtc = DateTimeOffset.UtcNow;
-        return ToDto(entity);
+        var lookup = BuildCalculationLookup(DeserializeIndicators(entity).Select(spec => spec.Code));
+        return ToDto(entity, lookup);
     }
 
     public async Task SaveAsync(CancellationToken cancellationToken)
@@ -144,24 +154,22 @@ public sealed class ScanProfileQueryService(
                 Name = string.IsNullOrWhiteSpace(spec.Name) ? spec.Code : spec.Name,
                 IndicatorType = spec.IndicatorType.Trim().ToUpperInvariant(),
                 Timeframe = spec.Timeframe.Trim().ToUpperInvariant(),
-                ParametersJson = parametersJson
+                ParametersJson = parametersJson,
+                NeedsRecalculation = true
             });
         }
     }
 
-    private ScanProfileDto ToDto(ScanProfile profile)
+    private ScanProfileDto ToDto(ScanProfile profile, CalculationLookup lookup)
     {
         var specs = DeserializeIndicators(profile);
-        var missing = new List<string>();
-        foreach (var spec in specs)
-        {
-            var definition = dbContext.IndicatorDefinitions.FirstOrDefault(d => d.Code == spec.Code);
-            if (definition is null ||
-                !dbContext.IndicatorValues.Any(v => v.IndicatorDefinitionId == definition.Id))
-            {
-                missing.Add(spec.Code);
-            }
-        }
+        var missing = specs
+            .Where(spec =>
+                !lookup.DefinitionIdsByCode.TryGetValue(spec.Code, out var definitionId) ||
+                !lookup.DefinitionIdsWithValues.Contains(definitionId))
+            .Select(spec => spec.Code)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
 
         return new ScanProfileDto
         {
@@ -178,6 +186,43 @@ public sealed class ScanProfileQueryService(
             UpdatedUtc = profile.UpdatedUtc
         };
     }
+
+    private CalculationLookup BuildCalculationLookup(IEnumerable<string> codes)
+    {
+        var codeList = codes
+            .Where(code => !string.IsNullOrWhiteSpace(code))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (codeList.Count == 0)
+        {
+            return new CalculationLookup(
+                new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase),
+                []);
+        }
+
+        var definitions = dbContext.IndicatorDefinitions
+            .Where(d => codeList.Contains(d.Code))
+            .Select(d => new { d.Id, d.Code })
+            .ToList();
+        var definitionIdsByCode = definitions.ToDictionary(
+            d => d.Code,
+            d => d.Id,
+            StringComparer.OrdinalIgnoreCase);
+        var definitionIds = definitions.Select(d => d.Id).ToList();
+        var definitionIdsWithValues = definitionIds.Count == 0
+            ? new HashSet<long>()
+            : dbContext.IndicatorValues
+                .Where(v => definitionIds.Contains(v.IndicatorDefinitionId))
+                .Select(v => v.IndicatorDefinitionId)
+                .Distinct()
+                .ToHashSet();
+
+        return new CalculationLookup(definitionIdsByCode, definitionIdsWithValues);
+    }
+
+    private sealed record CalculationLookup(
+        IReadOnlyDictionary<string, long> DefinitionIdsByCode,
+        HashSet<long> DefinitionIdsWithValues);
 
     private static IReadOnlyList<ProfileIndicatorSpec> DeserializeIndicators(ScanProfile profile)
         => DeserializeOrDefault<List<ProfileIndicatorSpec>>(profile.IndicatorsJson) ?? [];

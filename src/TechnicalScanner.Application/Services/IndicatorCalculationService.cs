@@ -12,15 +12,19 @@ public sealed class IndicatorCalculationService(
     ILogger<IndicatorCalculationService> logger)
 {
     public Task<int> CalculateAsync(CancellationToken cancellationToken)
-        => CalculateAsync(null, cancellationToken);
+        => CalculateAsync(null, pendingOnly: false, cancellationToken);
 
-    public async Task<int> CalculateAsync(string? indicatorCode, CancellationToken cancellationToken)
+    public Task<int> CalculateAsync(string? indicatorCode, CancellationToken cancellationToken)
+        => CalculateAsync(indicatorCode, pendingOnly: false, cancellationToken);
+
+    public async Task<int> CalculateAsync(string? indicatorCode, bool pendingOnly, CancellationToken cancellationToken)
     {
         var definitions = dbContext.IndicatorDefinitions
             .Where(d => d.IsActive)
             .ToList()
             .Where(d => string.IsNullOrWhiteSpace(indicatorCode) ||
                         d.Code.Equals(indicatorCode, StringComparison.OrdinalIgnoreCase))
+            .Where(d => !pendingOnly || d.NeedsRecalculation)
             .ToList();
 
         if (definitions.Count == 0)
@@ -65,6 +69,17 @@ public sealed class IndicatorCalculationService(
                 }
             }
 
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+
+        foreach (var definition in definitions)
+        {
+            definition.NeedsRecalculation = false;
+            definition.UpdatedUtc = DateTimeOffset.UtcNow;
+        }
+
+        if (definitions.Count > 0)
+        {
             await dbContext.SaveChangesAsync(cancellationToken);
         }
 

@@ -42,104 +42,84 @@ public sealed class CandleAggregationService(
     {
         var grouped = daily
             .GroupBy(c => GetWeekStart(c.CandleDate))
-            .OrderBy(g => g.Key);
+            .OrderBy(g => g.Key)
+            .Select(g => (Date: g.Key, Candles: g.OrderBy(c => c.CandleDate).ToList()))
+            .Where(g => g.Candles.Count > 0)
+            .ToList();
 
-        var count = 0;
-        foreach (var group in grouped)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            var candles = group.OrderBy(c => c.CandleDate).ToList();
-            if (candles.Count == 0)
-            {
-                continue;
-            }
-
-            await UpsertAggregatedCandleAsync(
-                ticker.Id,
-                Timeframe.W,
-                group.Key,
-                candles,
-                cancellationToken);
-            count++;
-        }
-
-        return count;
+        return await UpsertAggregatedCandlesAsync(ticker.Id, Timeframe.W, grouped, cancellationToken);
     }
 
     private async Task<int> AggregateMonthlyAsync(Ticker ticker, IReadOnlyList<PriceCandle> daily, CancellationToken cancellationToken)
     {
         var grouped = daily
             .GroupBy(c => new DateOnly(c.CandleDate.Year, c.CandleDate.Month, 1))
-            .OrderBy(g => g.Key);
+            .OrderBy(g => g.Key)
+            .Select(g => (Date: g.Key, Candles: g.OrderBy(c => c.CandleDate).ToList()))
+            .Where(g => g.Candles.Count > 0)
+            .ToList();
 
-        var count = 0;
-        foreach (var group in grouped)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            var candles = group.OrderBy(c => c.CandleDate).ToList();
-            if (candles.Count == 0)
-            {
-                continue;
-            }
-
-            await UpsertAggregatedCandleAsync(
-                ticker.Id,
-                Timeframe.M,
-                group.Key,
-                candles,
-                cancellationToken);
-            count++;
-        }
-
-        return count;
+        return await UpsertAggregatedCandlesAsync(ticker.Id, Timeframe.M, grouped, cancellationToken);
     }
 
-    private async Task UpsertAggregatedCandleAsync(
+    private async Task<int> UpsertAggregatedCandlesAsync(
         long tickerId,
         Timeframe timeframe,
-        DateOnly candleDate,
-        IReadOnlyList<PriceCandle> sourceCandles,
+        IReadOnlyList<(DateOnly Date, List<PriceCandle> Candles)> groups,
         CancellationToken cancellationToken)
     {
-        var timeframeCode = timeframe.ToCode();
-        var existing = dbContext.PriceCandles.FirstOrDefault(p =>
-            p.TickerId == tickerId && p.Timeframe == timeframeCode && p.CandleDate == candleDate);
-
-        var open = sourceCandles.First().Open ?? sourceCandles.First().Close;
-        var close = sourceCandles.Last().AdjustedClose ?? sourceCandles.Last().Close;
-        var high = sourceCandles.Max(c => c.High ?? c.Close);
-        var low = sourceCandles.Min(c => c.Low ?? c.Close);
-        var volume = sourceCandles.Sum(c => c.Volume ?? 0);
-
-        if (existing is null)
+        if (groups.Count == 0)
         {
-            dbContext.Add(new PriceCandle
-            {
-                TickerId = tickerId,
-                Timeframe = timeframeCode,
-                CandleDate = candleDate,
-                Open = open,
-                High = high,
-                Low = low,
-                Close = close,
-                AdjustedClose = close,
-                Volume = volume,
-                Source = "aggregated"
-            });
+            return 0;
         }
-        else
+
+        cancellationToken.ThrowIfCancellationRequested();
+        var timeframeCode = timeframe.ToCode();
+        var dates = groups.Select(g => g.Date).ToList();
+        var existing = dbContext.PriceCandles
+            .Where(p => p.TickerId == tickerId && p.Timeframe == timeframeCode && dates.Contains(p.CandleDate))
+            .ToList()
+            .ToDictionary(p => p.CandleDate);
+
+        foreach (var (candleDate, sourceCandles) in groups)
         {
-            existing.Open = open;
-            existing.High = high;
-            existing.Low = low;
-            existing.Close = close;
-            existing.AdjustedClose = close;
-            existing.Volume = volume;
-            existing.Source = "aggregated";
-            existing.UpdatedUtc = DateTimeOffset.UtcNow;
+            var open = sourceCandles.First().Open ?? sourceCandles.First().Close;
+            var close = sourceCandles.Last().AdjustedClose ?? sourceCandles.Last().Close;
+            var high = sourceCandles.Max(c => c.High ?? c.Close);
+            var low = sourceCandles.Min(c => c.Low ?? c.Close);
+            var volume = sourceCandles.Sum(c => c.Volume ?? 0);
+
+            if (existing.TryGetValue(candleDate, out var row))
+            {
+                row.Open = open;
+                row.High = high;
+                row.Low = low;
+                row.Close = close;
+                row.AdjustedClose = close;
+                row.Volume = volume;
+                row.Source = "aggregated";
+                row.UpdatedUtc = DateTimeOffset.UtcNow;
+            }
+            else
+            {
+                dbContext.Add(new PriceCandle
+                {
+                    TickerId = tickerId,
+                    Timeframe = timeframeCode,
+                    CandleDate = candleDate,
+                    Open = open,
+                    High = high,
+                    Low = low,
+                    Close = close,
+                    AdjustedClose = close,
+                    Volume = volume,
+                    Source = "aggregated"
+                });
+            }
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
+        return groups.Count;
     }
 
     private static DateOnly GetWeekStart(DateOnly date)

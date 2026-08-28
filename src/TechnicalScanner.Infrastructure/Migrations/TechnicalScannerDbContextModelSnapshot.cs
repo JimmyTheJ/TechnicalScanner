@@ -201,6 +201,9 @@ namespace TechnicalScanner.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<bool>("NeedsRecalculation")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("ParametersJson")
                         .IsRequired()
                         .HasColumnType("jsonb")
@@ -324,6 +327,111 @@ namespace TechnicalScanner.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("price_candle", (string)null);
+                });
+
+            modelBuilder.Entity("TechnicalScanner.Domain.Entities.ProfileBacktestHit", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<decimal>("Close")
+                        .HasColumnType("numeric");
+
+                    b.Property<DateOnly>("EntryDate")
+                        .HasColumnType("date");
+
+                    b.Property<decimal?>("ForwardReturnPct")
+                        .HasColumnType("numeric");
+
+                    b.Property<long>("ProfileBacktestRunId")
+                        .HasColumnType("bigint");
+
+                    b.Property<decimal?>("Score")
+                        .HasColumnType("numeric");
+
+                    b.Property<string>("Symbol")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<long>("TickerId")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProfileBacktestRunId", "Score");
+
+                    b.HasIndex("ProfileBacktestRunId", "TickerId", "EntryDate")
+                        .IsUnique();
+
+                    b.ToTable("profile_backtest_hit", (string)null);
+                });
+
+            modelBuilder.Entity("TechnicalScanner.Domain.Entities.ProfileBacktestRun", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTimeOffset?>("CompletedUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("CreatedUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("EntryCount")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ErrorMessage")
+                        .HasColumnType("text");
+
+                    b.Property<int>("ForwardDays")
+                        .HasColumnType("integer");
+
+                    b.Property<DateOnly?>("FromDate")
+                        .HasColumnType("date");
+
+                    b.Property<int>("MatchDays")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal?>("MeanForwardReturnPct")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal?>("MedianForwardReturnPct")
+                        .HasColumnType("numeric");
+
+                    b.Property<string>("ProfileCode")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<long>("ScanProfileId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTimeOffset>("StartedUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("TickerCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TickersWithEntries")
+                        .HasColumnType("integer");
+
+                    b.Property<DateOnly?>("ToDate")
+                        .HasColumnType("date");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProfileCode", "StartedUtc");
+
+                    b.ToTable("profile_backtest_run", (string)null);
                 });
 
             modelBuilder.Entity("TechnicalScanner.Domain.Entities.ScanProfile", b =>
@@ -717,6 +825,17 @@ namespace TechnicalScanner.Infrastructure.Migrations
                     b.Navigation("Ticker");
                 });
 
+            modelBuilder.Entity("TechnicalScanner.Domain.Entities.ProfileBacktestHit", b =>
+                {
+                    b.HasOne("TechnicalScanner.Domain.Entities.ProfileBacktestRun", "Run")
+                        .WithMany("Hits")
+                        .HasForeignKey("ProfileBacktestRunId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Run");
+                });
+
             modelBuilder.Entity("TechnicalScanner.Domain.Entities.ScanScore", b =>
                 {
                     b.HasOne("TechnicalScanner.Domain.Entities.ScanRun", "ScanRun")
@@ -793,6 +912,11 @@ namespace TechnicalScanner.Infrastructure.Migrations
                     b.Navigation("IndicatorValues");
 
                     b.Navigation("SignalDefinitions");
+                });
+
+            modelBuilder.Entity("TechnicalScanner.Domain.Entities.ProfileBacktestRun", b =>
+                {
+                    b.Navigation("Hits");
                 });
 
             modelBuilder.Entity("TechnicalScanner.Domain.Entities.ScanRun", b =>
