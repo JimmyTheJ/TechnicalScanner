@@ -12,6 +12,11 @@ services:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - ${POSTGRES_DATA_PATH:-./data/postgres}:/var/lib/postgresql/data
+    # .NET Dns.GetHostEntry rejects underscores; Npgsql must use this alias, not the service name.
+    networks:
+      default:
+        aliases:
+          - postgres
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-technical_scanner}"]
       interval: 5s
@@ -30,7 +35,7 @@ services:
         required: false
     environment:
       ASPNETCORE_URLS: http://0.0.0.0:8080
-      ConnectionStrings__TechnicalScanner: Host=technical_scanner_postgres;Port=5432;Database=${POSTGRES_DB:-technical_scanner};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-postgres}
+      ConnectionStrings__TechnicalScanner: Host=postgres;Port=5432;Database=${POSTGRES_DB:-technical_scanner};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-postgres}
     ports:
       - "${API_PORT:-5223}:8080"
     depends_on:
@@ -60,7 +65,7 @@ services:
       - path: .env
         required: false
     environment:
-      ConnectionStrings__TechnicalScanner: Host=technical_scanner_postgres;Port=5432;Database=${POSTGRES_DB:-technical_scanner};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-postgres}
+      ConnectionStrings__TechnicalScanner: Host=postgres;Port=5432;Database=${POSTGRES_DB:-technical_scanner};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-postgres}
     depends_on:
       technical_scanner_postgres:
         condition: service_healthy
