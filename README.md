@@ -55,6 +55,8 @@ Defaults:
 
 Override `WEB_PORT`, `API_PORT`, or `POSTGRES_PORT` in `.env` if those host ports are taken.
 
+Postgres data is a bind mount. Set `POSTGRES_DATA_PATH` in `.env` (default `./data/postgres`). On a Linux server this can be an absolute path such as `/mnt/d/technical-scanner/postgres`. Create the directory first if it does not exist. Changing this path (or `POSTGRES_PASSWORD`) after the first start does not migrate existing data.
+
 To attach the API and dashboard to an existing reverse-proxy network (e.g. nginx), uncomment `DOCKER_SHARED_NETWORK=nginx_network` in `.env`. The network must already exist. Nginx Proxy Manager should forward with scheme `http` to hostname `technical-scanner-web` on port `80` (the container port, not the host port). Point a separate API host at `technical-scanner-api` on port `8080` if you need the API on its own hostname.
 
 Verify the overlay with `.\compose.ps1 config` — you should see both the project default network and `name: nginx_network`.
@@ -163,6 +165,7 @@ Pages:
 Edit the root `.env` file (copy from `.env.example`). Keys use `__` in place of JSON nesting and overlay `appsettings.json` for both `dotnet run` and Docker:
 
 ```env
+POSTGRES_DATA_PATH=./data/postgres
 ConnectionStrings__TechnicalScanner=Host=localhost;Port=5432;Database=technical_scanner;Username=postgres;Password=postgres
 MarketData__Provider=YahooFinance
 Alerts__Enabled=true
