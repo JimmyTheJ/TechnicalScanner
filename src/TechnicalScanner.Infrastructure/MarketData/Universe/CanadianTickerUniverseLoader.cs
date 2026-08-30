@@ -33,13 +33,7 @@ public sealed class CanadianTickerUniverseLoader(HttpClient httpClient, ILogger<
         await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
         using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
 
-        if (!document.RootElement.TryGetProperty("results", out var results)
-            || !results.TryGetProperty("company", out var companies))
-        {
-            return;
-        }
-
-        foreach (var company in companies.EnumerateArray())
+        foreach (var company in EnumerateCompanies(document.RootElement))
         {
             if (!company.TryGetProperty("symbol", out var symbolElement))
             {
@@ -66,6 +60,43 @@ public sealed class CanadianTickerUniverseLoader(HttpClient httpClient, ILogger<
 
             var key = $"{symbol}|{exchange}|CA";
             tickers[key] = new TickerDto(symbol, exchange, "CA", "CAD", name, null, null, null, isEtf);
+        }
+    }
+
+    /// <summary>
+    /// TSX currently returns <c>{ "results": [ { "symbol", "name", ... } ] }</c>.
+    /// Older payloads used <c>{ "results": { "company": [ ... ] } }</c>.
+    /// </summary>
+    public static IEnumerable<JsonElement> EnumerateCompanies(JsonElement root)
+    {
+        JsonElement results;
+        if (root.ValueKind == JsonValueKind.Array)
+        {
+            results = root;
+        }
+        else if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("results", out results))
+        {
+            yield break;
+        }
+
+        if (results.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in results.EnumerateArray())
+            {
+                yield return item;
+            }
+
+            yield break;
+        }
+
+        if (results.ValueKind == JsonValueKind.Object
+            && results.TryGetProperty("company", out var companies)
+            && companies.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in companies.EnumerateArray())
+            {
+                yield return item;
+            }
         }
     }
 }
