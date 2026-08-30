@@ -1,9 +1,9 @@
 # Optional shared reverse-proxy network: set DOCKER_SHARED_NETWORK in .env and use compose.ps1 / compose.sh.
 
 services:
-  postgres:
+  technical_scanner_postgres:
     image: postgres:16
-    container_name: technical-scanner-postgres
+    container_name: technical_scanner_postgres
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-technical_scanner}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
@@ -19,50 +19,50 @@ services:
       retries: 10
     restart: unless-stopped
 
-  api:
+  technical_scanner_api:
     build:
       context: .
       dockerfile: Dockerfile
       target: api
-    container_name: technical-scanner-api
+    container_name: technical_scanner_api
     env_file:
       - path: .env
         required: false
     environment:
       ASPNETCORE_URLS: http://0.0.0.0:8080
-      ConnectionStrings__TechnicalScanner: Host=postgres;Port=5432;Database=${POSTGRES_DB:-technical_scanner};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-postgres}
+      ConnectionStrings__TechnicalScanner: Host=technical_scanner_postgres;Port=5432;Database=${POSTGRES_DB:-technical_scanner};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-postgres}
     ports:
       - "${API_PORT:-5223}:8080"
     depends_on:
-      postgres:
+      technical_scanner_postgres:
         condition: service_healthy
     restart: unless-stopped
 
-  web:
+  technical_scanner_web:
     build:
       context: .
       dockerfile: Dockerfile.web
-    container_name: technical-scanner-web
+    container_name: technical_scanner_web
     ports:
       - "${WEB_PORT:-3080}:80"
     depends_on:
-      - api
+      - technical_scanner_api
     restart: unless-stopped
 
-  worker:
+  technical_scanner_worker:
     profiles: ["worker"]
     build:
       context: .
       dockerfile: Dockerfile
       target: worker
-    container_name: technical-scanner-worker
+    container_name: technical_scanner_worker
     env_file:
       - path: .env
         required: false
     environment:
-      ConnectionStrings__TechnicalScanner: Host=postgres;Port=5432;Database=${POSTGRES_DB:-technical_scanner};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-postgres}
+      ConnectionStrings__TechnicalScanner: Host=technical_scanner_postgres;Port=5432;Database=${POSTGRES_DB:-technical_scanner};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-postgres}
     depends_on:
-      postgres:
+      technical_scanner_postgres:
         condition: service_healthy
     volumes:
       - ./exports:/app/exports

@@ -4,11 +4,11 @@
 # The network must already exist (e.g. docker network create nginx_network).
 
 services:
-  api:
+  technical_scanner_api:
     networks:
       - default
       - shared
-  web:
+  technical_scanner_web:
     networks:
       - default
       - shared

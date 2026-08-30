@@ -49,22 +49,22 @@ Defaults:
 
 | Service | Local URL | Container | Container port |
 |---------|-----------|-----------|----------------|
-| Dashboard | http://localhost:3080 | `technical-scanner-web` | `80` |
-| API / Swagger | http://localhost:5223/swagger (also via the dashboard at `/swagger`) | `technical-scanner-api` | `8080` |
-| PostgreSQL | `localhost:5432` | `technical-scanner-postgres` | `5432` |
+| Dashboard | http://localhost:3080 | `technical_scanner_web` | `80` |
+| API / Swagger | http://localhost:5223/swagger (also via the dashboard at `/swagger`) | `technical_scanner_api` | `8080` |
+| PostgreSQL | `localhost:5432` | `technical_scanner_postgres` | `5432` |
 
 Override `WEB_PORT`, `API_PORT`, or `POSTGRES_PORT` in `.env` if those host ports are taken.
 
 Postgres data is a bind mount. Set `POSTGRES_DATA_PATH` in `.env` (default `./data/postgres`). On a Linux server this can be an absolute path such as `/mnt/d/technical-scanner/postgres`. Create the directory first if it does not exist. Changing this path (or `POSTGRES_PASSWORD`) after the first start does not migrate existing data.
 
-To attach the API and dashboard to an existing reverse-proxy network (e.g. nginx), uncomment `DOCKER_SHARED_NETWORK=nginx_network` in `.env`. The network must already exist. Nginx Proxy Manager should forward with scheme `http` to hostname `technical-scanner-web` on port `80` (the container port, not the host port). Point a separate API host at `technical-scanner-api` on port `8080` if you need the API on its own hostname.
+To attach the API and dashboard to an existing reverse-proxy network (e.g. nginx), uncomment `DOCKER_SHARED_NETWORK=nginx_network` in `.env`. The network must already exist. Nginx Proxy Manager should forward with scheme `http` to hostname `technical_scanner_web` on port `80` (the container port, not the host port). Point a separate API host at `technical_scanner_api` on port `8080` if you need the API on its own hostname.
 
 Verify the overlay with `.\compose.ps1 config` — you should see both the project default network and `name: nginx_network`.
 
 Worker jobs are a compose profile (not started by `up`). Example:
 
 ```powershell
-.\compose.ps1 --profile worker run --rm worker run-nightly-scan --years 10
+.\compose.ps1 --profile worker run --rm technical_scanner_worker run-nightly-scan --years 10
 ```
 
 ## Quick start
@@ -191,7 +191,7 @@ That maps onto the same shape as `appsettings.json`:
 }
 ```
 
-Compose passes `.env` into the API and worker containers. Inside those containers the connection string `Host` is `postgres` (the compose service name). Host-run apps keep `Host=localhost`.
+Compose passes `.env` into the API and worker containers. Inside those containers the connection string `Host` is `technical_scanner_postgres` (the compose service name). Host-run apps keep `Host=localhost`.
 
 `appsettings.Local.json` is still loaded if present, then `.env`, then process environment variables.
 
