@@ -214,7 +214,7 @@ Set `MarketData__Provider=Seed` in `.env` (or `"Provider": "Seed"` in `appsettin
 
 ### Rate limiting and retries
 
-Market data calls are wrapped with configurable rate limiting and transient retries (`MarketData__RequestsPerSecond`, `MarketData__MaxRetries`, `MarketData__RetryDelaySeconds` in `.env`). HTTP 429 responses use a longer cooldown (`MarketData__TooManyRequestsDelayMinutes`, default 30): 30 minutes, then 60, then 90, and so on, until a request succeeds and the counter resets.
+Market data calls are wrapped with configurable rate limiting and transient retries (`MarketData__RequestsPerSecond`, `MarketData__MaxRetries`, `MarketData__RetryDelaySeconds` in `.env`). HTTP 429 cooldowns use `(base + accrued additional + this attempt's additional) * multiplier` (`MarketData__TooManyRequestsDelayMinutes`, `MarketData__TooManyRequestsAdditionalMinutes`, `MarketData__TooManyRequestsMultiplier`). Defaults are 30 / 30 / 1, so waits are 30, 60, 90, … minutes. A negative multiplier is treated as 0. A successful request resets the 429 counters.
 
 ### Incremental price updates
 

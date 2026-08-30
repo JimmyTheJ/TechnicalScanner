@@ -71,7 +71,7 @@ public sealed class ResilientRateLimitedMarketDataProvider : IMarketDataProvider
             }
             catch (Exception ex) when (IsTooManyRequests(ex))
             {
-                var delay = RegisterTooManyRequestsDelay(settings.TooManyRequestsDelayMinutes);
+                var delay = RegisterTooManyRequestsDelay(settings);
                 _logger.LogWarning(
                     ex,
                     "Market data rate limited (429) during {Operation}. Consecutive 429s: {Consecutive}. Waiting {DelayMinutes} minutes before retrying.",
@@ -97,10 +97,14 @@ public sealed class ResilientRateLimitedMarketDataProvider : IMarketDataProvider
         }
     }
 
-    private TimeSpan RegisterTooManyRequestsDelay(int baseDelayMinutes)
+    private TimeSpan RegisterTooManyRequestsDelay(MarketDataOptions settings)
     {
         var consecutive = Interlocked.Increment(ref _consecutiveTooManyRequests);
-        return MarketDataBackoff.TooManyRequestsDelay(consecutive, baseDelayMinutes);
+        return MarketDataBackoff.TooManyRequestsDelay(
+            consecutive,
+            settings.TooManyRequestsDelayMinutes,
+            settings.TooManyRequestsAdditionalMinutes,
+            settings.TooManyRequestsMultiplier);
     }
 
     private void ResetTooManyRequestsBackoff()
@@ -140,13 +144,23 @@ public sealed class ResilientRateLimitedMarketDataProvider : IMarketDataProvider
 
 internal static class MarketDataBackoff
 {
-    public static TimeSpan TooManyRequestsDelay(int consecutiveFailures, int baseDelayMinutes)
+    public static TimeSpan TooManyRequestsDelay(
+        int consecutiveFailures,
+        double baseDelayMinutes,
+        double additionalMinutes,
+        double multiplier)
     {
-        if (consecutiveFailures <= 0 || baseDelayMinutes <= 0)
+        if (consecutiveFailures <= 0)
         {
             return TimeSpan.Zero;
         }
 
-        return TimeSpan.FromMinutes((double)baseDelayMinutes * consecutiveFailures);
+        var baseMinutes = Math.Max(0, baseDelayMinutes);
+        var addition = Math.Max(0, additionalMinutes);
+        var factor = Math.Max(0, multiplier);
+        var accruedAdditional = addition * Math.Max(0, consecutiveFailures - 2);
+        var newAccrual = consecutiveFailures == 1 ? 0 : addition;
+        var minutes = (baseMinutes + accruedAdditional + newAccrual) * factor;
+        return TimeSpan.FromMinutes(minutes);
     }
 }

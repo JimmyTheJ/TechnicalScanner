@@ -14,6 +14,10 @@ public sealed class MarketDataOptions
 
     public int TooManyRequestsDelayMinutes { get; set; } = 30;
 
+    public double TooManyRequestsAdditionalMinutes { get; set; } = 30;
+
+    public double TooManyRequestsMultiplier { get; set; } = 1;
+
     public int InitialHistoryYears { get; set; } = 10;
 
     public UniverseOptions Universe { get; set; } = new();
