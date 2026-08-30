@@ -1,5 +1,6 @@
 using System.Text.Json;
 using TechnicalScanner.Application.Abstractions;
+using TechnicalScanner.Application.Profiles;
 
 namespace TechnicalScanner.Application.Services.Queries;
 
@@ -43,6 +44,23 @@ public static class LatestIndicatorLookup
         var previous = LoadAtDates(dbContext, previousDates);
 
         return new LatestPair(Index(current), Index(previous));
+    }
+
+    public static Dictionary<string, Dictionary<string, JsonElement>> ToEvaluatorMap(
+        Dictionary<string, LatestIndicatorSnapshot>? snapshots)
+    {
+        var result = new Dictionary<string, Dictionary<string, JsonElement>>(StringComparer.OrdinalIgnoreCase);
+        if (snapshots is null)
+        {
+            return result;
+        }
+
+        foreach (var (code, snapshot) in snapshots)
+        {
+            result[code] = IndicatorValueMaps.ToFields(snapshot.Values);
+        }
+
+        return result;
     }
 
     public static Dictionary<long, Dictionary<string, LatestIndicatorSnapshot>> Index(

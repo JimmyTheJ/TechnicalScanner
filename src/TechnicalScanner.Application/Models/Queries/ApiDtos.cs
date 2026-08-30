@@ -16,6 +16,10 @@ public sealed class BreadthMetricDto
     public int TotalValidStocks { get; init; }
     public int MatchCount { get; init; }
     public decimal MatchPct { get; init; }
+    public decimal? MedianValue { get; init; }
+    public decimal? AverageValue { get; init; }
+    public string? UniverseName { get; init; }
+    public string? Country { get; init; }
 }
 
 public sealed class SignalMatchDto

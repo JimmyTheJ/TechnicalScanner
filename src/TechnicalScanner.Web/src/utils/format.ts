@@ -43,9 +43,24 @@ export function formatDate(value?: string | null): string {
 }
 
 export function metricLabel(code: string): string {
+  if (code.toUpperCase().startsWith('PROFILE_') && code.toUpperCase().endsWith('_PCT')) {
+    return code.slice(8, -4)
+      .replaceAll('_', ' ')
+      .toLowerCase()
+      .replace(/\b\w/g, (c) => c.toUpperCase())
+  }
+
   return code
     .replaceAll('_', ' ')
     .replace(/\bPCT\b/g, '%')
     .toLowerCase()
     .replace(/\b\w/g, (c) => c.toUpperCase())
+}
+
+export function profileCodeFromMetric(metricCode: string): string | null {
+  const upper = metricCode.toUpperCase()
+  if (!upper.startsWith('PROFILE_') || !upper.endsWith('_PCT')) {
+    return null
+  }
+  return metricCode.slice(8, -4)
 }

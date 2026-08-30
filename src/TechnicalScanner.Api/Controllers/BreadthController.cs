@@ -10,8 +10,8 @@ public sealed class BreadthController(BreadthQueryService breadthQueryService) :
 {
     [HttpGet("latest")]
     [ProducesResponseType(typeof(IReadOnlyList<BreadthSnapshot>), StatusCodes.Status200OK)]
-    public IActionResult GetLatest()
-        => Ok(breadthQueryService.GetLatest());
+    public IActionResult GetLatest([FromQuery] string? universe)
+        => Ok(breadthQueryService.GetLatest(universe));
 
     [HttpGet("history")]
     [ProducesResponseType(typeof(IReadOnlyList<BreadthSnapshot>), StatusCodes.Status200OK)]
@@ -19,13 +19,14 @@ public sealed class BreadthController(BreadthQueryService breadthQueryService) :
     public IActionResult GetHistory(
         [FromQuery] string metricCode,
         [FromQuery] DateTimeOffset? from,
-        [FromQuery] DateTimeOffset? to)
+        [FromQuery] DateTimeOffset? to,
+        [FromQuery] string? universe)
     {
         if (string.IsNullOrWhiteSpace(metricCode))
         {
             return BadRequest(new { error = "metricCode is required." });
         }
 
-        return Ok(breadthQueryService.GetHistory(metricCode, from, to));
+        return Ok(breadthQueryService.GetHistory(metricCode, from, to, universe));
     }
 }

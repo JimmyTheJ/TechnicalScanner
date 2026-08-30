@@ -198,8 +198,9 @@ export const api = {
       'POST',
     ),
 
-  getBreadthLatest: () => getJson<BreadthSnapshot[]>('/api/breadth/latest'),
+  getBreadthLatest: (universe?: string) =>
+    getJson<BreadthSnapshot[]>(`/api/breadth/latest${buildQuery({ universe })}`),
 
-  getBreadthHistory: (metricCode: string) =>
-    getJson<BreadthSnapshot[]>(`/api/breadth/history${buildQuery({ metricCode })}`),
+  getBreadthHistory: (metricCode: string, universe?: string) =>
+    getJson<BreadthSnapshot[]>(`/api/breadth/history${buildQuery({ metricCode, universe })}`),
 }

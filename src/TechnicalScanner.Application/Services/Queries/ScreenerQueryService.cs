@@ -64,7 +64,7 @@ public sealed class ScreenerQueryService(
                 x => x.Value.Values,
                 StringComparer.OrdinalIgnoreCase);
             var evaluatorMap = IndicatorValueMaps.ToEvaluatorMap(valuesByCode);
-            var previousMap = ToEvaluatorMap(previousLookup.GetValueOrDefault(ticker.Id));
+            var previousMap = LatestIndicatorLookup.ToEvaluatorMap(previousLookup.GetValueOrDefault(ticker.Id));
 
             bool? profileMatch = null;
             if (profile is not null)
@@ -485,22 +485,5 @@ public sealed class ScreenerQueryService(
         {
             return [];
         }
-    }
-
-    private static Dictionary<string, Dictionary<string, JsonElement>> ToEvaluatorMap(
-        Dictionary<string, LatestIndicatorSnapshot>? snapshots)
-    {
-        var result = new Dictionary<string, Dictionary<string, JsonElement>>(StringComparer.OrdinalIgnoreCase);
-        if (snapshots is null)
-        {
-            return result;
-        }
-
-        foreach (var (code, snapshot) in snapshots)
-        {
-            result[code] = IndicatorValueMaps.ToFields(snapshot.Values);
-        }
-
-        return result;
     }
 }

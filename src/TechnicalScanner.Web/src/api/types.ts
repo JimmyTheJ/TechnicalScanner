@@ -84,6 +84,10 @@ export interface BreadthMetric {
   totalValidStocks: number
   matchCount: number
   matchPct: number
+  medianValue?: number
+  averageValue?: number
+  universeName?: string
+  country?: string
 }
 
 export interface ScannerLatest {

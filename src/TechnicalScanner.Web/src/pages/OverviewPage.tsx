@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../api/client'
-import type { ScannerLatest, ScreenerRow, SignalMatch } from '../api/types'
+import type { BreadthMetric, ScannerLatest, ScreenerRow, SignalMatch } from '../api/types'
 import { BreadthBarChart } from '../components/BreadthCharts'
 import { SectorHeatmap } from '../components/SectorHeatmap'
 import { StatCard } from '../components/StatCard'
 import { ErrorState, LoadingState } from '../components/StateBlocks'
-import { formatDate, formatPercent, metricLabel } from '../utils/format'
+import { formatDate, formatPercent, metricLabel, profileCodeFromMetric } from '../utils/format'
 import { buildSectorHeatmap } from '../utils/sectorHeatmap'
 
 export function OverviewPage() {
@@ -59,9 +59,19 @@ export function OverviewPage() {
     return <ErrorState message={error ?? 'Overview data unavailable'} />
   }
 
-  const breadthItems = latest.breadth
+  const profileBreadth = latest.breadth.filter((item) => profileCodeFromMetric(item.metricCode))
+  const structureBreadth = latest.breadth.filter((item) => !profileCodeFromMetric(item.metricCode))
+  const washout = profileBreadth.reduce<BreadthMetric | null>(
+    (best, item) => (best === null || item.matchPct > best.matchPct ? item : best),
+    null,
+  )
+  const structureItems = structureBreadth
     .slice(0, 8)
     .map((item) => ({ label: metricLabel(item.metricCode), value: Number(item.matchPct.toFixed(1)) }))
+  const profileItems = profileBreadth.map((item) => ({
+    label: metricLabel(item.metricCode),
+    value: Number(item.matchPct.toFixed(1)),
+  }))
 
   return (
     <div className="page-stack">
@@ -82,14 +92,14 @@ export function OverviewPage() {
         <StatCard label="Active Tickers" value={latest.activeTickers} />
         <StatCard label="Matched Signals" value={latest.matchedSignals} />
         <StatCard
-          label="Breadth Metrics"
-          value={latest.breadth.length}
-          hint="Tracked in the latest scan"
+          label={washout ? metricLabel(washout.metricCode) : 'Cheapness'}
+          value={washout ? formatPercent(washout.matchPct) : '—'}
+          hint={washout ? `${washout.matchCount}/${washout.totalValidStocks} matching` : 'Run calculate-breadth'}
         />
       </section>
 
       <section className="panel-grid">
-        <BreadthBarChart title="Market Breadth Snapshot" items={breadthItems} />
+        <BreadthBarChart title="Market structure" items={structureItems} />
         <div className="panel-card">
           <div className="panel-header">
             <h3>Recent Signal Matches</h3>
@@ -106,6 +116,34 @@ export function OverviewPage() {
         </div>
       </section>
 
+      {profileItems.length > 0 ? (
+        <section className="panel-card">
+          <div className="panel-header">
+            <h3>Cheapness profiles</h3>
+            <Link to="/breadth">History</Link>
+          </div>
+          <p className="muted">Share of the universe that currently matches each saved recipe.</p>
+          <BreadthBarChart title="Profile washout" items={profileItems} />
+          <div className="metric-grid">
+            {profileBreadth.map((metric) => {
+              const profileCode = profileCodeFromMetric(metric.metricCode)
+              return (
+                <article key={metric.metricCode} className="metric-chip">
+                  <p>{metricLabel(metric.metricCode)}</p>
+                  <strong>{formatPercent(metric.matchPct)}</strong>
+                  <span className="muted">
+                    {metric.matchCount}/{metric.totalValidStocks}
+                  </span>
+                  {profileCode ? (
+                    <Link to={`/screener?profile=${encodeURIComponent(profileCode)}`}>Screen</Link>
+                  ) : null}
+                </article>
+              )
+            })}
+          </div>
+        </section>
+      ) : null}
+
       <section className="panel-card">
         <div className="panel-header">
           <h3>Sector Heatmap</h3>
@@ -116,10 +154,10 @@ export function OverviewPage() {
 
       <section className="panel-card">
         <div className="panel-header">
-          <h3>Key Breadth Metrics</h3>
+          <h3>Key structure metrics</h3>
         </div>
         <div className="metric-grid">
-          {latest.breadth.map((metric) => (
+          {structureBreadth.map((metric) => (
             <article key={metric.metricCode} className="metric-chip">
               <p>{metricLabel(metric.metricCode)}</p>
               <strong>{formatPercent(metric.matchPct)}</strong>

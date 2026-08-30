@@ -3,6 +3,7 @@ using System.Text.Json;
 using TechnicalScanner.Application.Abstractions;
 using TechnicalScanner.Application.Models.Profiles;
 using TechnicalScanner.Application.Profiles;
+using TechnicalScanner.Application.Services.Queries;
 using TechnicalScanner.Application.Signals;
 using TechnicalScanner.Domain.Entities;
 
@@ -30,16 +31,41 @@ public sealed class CompositeScoringService(
             recipes.Add(("DEEP_PULLBACK", LegacyDeepPullbackWeights()));
         }
 
+        if (tickers.Count == 0)
+        {
+            return 0;
+        }
+
+        var codes = recipes
+            .SelectMany(recipe => recipe.Weights.Select(weight => weight.IndicatorCode))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        var needsPrevious = recipes.Any(recipe =>
+            recipe.Weights.Any(weight => SignalRuleEvaluator.IsTemporalOperator(weight.Operator)));
+        var tickerIds = tickers.Select(t => t.Id).ToList();
+        var pair = needsPrevious
+            ? LatestIndicatorLookup.LoadCurrentAndPrevious(dbContext, tickerIds, codes)
+            : new LatestPair(LatestIndicatorLookup.Load(dbContext, tickerIds, codes), []);
+
         var count = 0;
         foreach (var ticker in tickers)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var values = GetLatestIndicatorValues(ticker.Id);
+            var current = LatestIndicatorLookup.ToEvaluatorMap(pair.Current.GetValueOrDefault(ticker.Id));
+            var previous = LatestIndicatorLookup.ToEvaluatorMap(pair.Previous.GetValueOrDefault(ticker.Id));
 
             foreach (var (code, weights) in recipes)
             {
-                var (score, components) = ProfileScoring.Score(weights, values, ruleEvaluator);
-                UpsertScore(scanRunId, scanDate, ticker.Id, code, score, components);
+                var (score, components) = ProfileScoring.Score(weights, current, ruleEvaluator, previous);
+                dbContext.Add(new ScanScore
+                {
+                    ScanRunId = scanRunId,
+                    ScanDateUtc = scanDate,
+                    TickerId = ticker.Id,
+                    ScoreCode = code,
+                    Score = score,
+                    ComponentsJson = JsonSerializer.Serialize(components)
+                });
                 count++;
             }
         }
@@ -47,55 +73,6 @@ public sealed class CompositeScoringService(
         await dbContext.SaveChangesAsync(cancellationToken);
         logger.LogInformation("Calculated {Count} composite scores.", count);
         return count;
-    }
-
-    private void UpsertScore(
-        long? scanRunId,
-        DateTimeOffset scanDate,
-        long tickerId,
-        string scoreCode,
-        decimal score,
-        Dictionary<string, decimal> components)
-    {
-        var existing = dbContext.ScanScores.FirstOrDefault(s =>
-            s.ScanDateUtc == scanDate && s.TickerId == tickerId && s.ScoreCode == scoreCode);
-
-        var componentsJson = JsonSerializer.Serialize(components);
-        if (existing is null)
-        {
-            dbContext.Add(new ScanScore
-            {
-                ScanRunId = scanRunId,
-                ScanDateUtc = scanDate,
-                TickerId = tickerId,
-                ScoreCode = scoreCode,
-                Score = score,
-                ComponentsJson = componentsJson
-            });
-        }
-        else
-        {
-            existing.ScanRunId = scanRunId;
-            existing.Score = score;
-            existing.ComponentsJson = componentsJson;
-        }
-    }
-
-    private Dictionary<string, Dictionary<string, JsonElement>> GetLatestIndicatorValues(long tickerId)
-    {
-        return dbContext.IndicatorValues
-            .Where(v => v.TickerId == tickerId)
-            .Join(
-                dbContext.IndicatorDefinitions,
-                value => value.IndicatorDefinitionId,
-                definition => definition.Id,
-                (value, definition) => new { definition.Code, value })
-            .GroupBy(x => x.Code)
-            .Select(g => g.OrderByDescending(x => x.value.CandleDate).First())
-            .ToDictionary(
-                x => x.Code,
-                x => IndicatorValueMaps.ParseValuesJson(x.value.ValuesJson),
-                StringComparer.OrdinalIgnoreCase);
     }
 
     private static List<ScoreWeightSpec> SafeWeights(string json)

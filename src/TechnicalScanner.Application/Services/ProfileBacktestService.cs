@@ -42,8 +42,8 @@ public sealed class ProfileBacktestService(
         var pair = LatestIndicatorLookup.LoadCurrentAndPrevious(dbContext, [ticker.Id], codes);
         var currentSnaps = pair.Current.GetValueOrDefault(ticker.Id) ?? [];
         var previousSnaps = pair.Previous.GetValueOrDefault(ticker.Id);
-        var current = ToEvaluatorMap(currentSnaps);
-        var previous = ToEvaluatorMap(previousSnaps);
+        var current = LatestIndicatorLookup.ToEvaluatorMap(currentSnaps);
+        var previous = LatestIndicatorLookup.ToEvaluatorMap(previousSnaps);
         var evaluator = new SignalRuleEvaluator();
         var specs = ProfileJson.Deserialize<List<ProfileIndicatorSpec>>(profile.IndicatorsJson);
         var weights = ProfileJson.Deserialize<List<ScoreWeightSpec>>(profile.ScoreWeightsJson);
@@ -332,23 +332,5 @@ public sealed class ProfileBacktestService(
         {
             return new ProfileUniverse();
         }
-    }
-
-    private static Dictionary<string, Dictionary<string, System.Text.Json.JsonElement>> ToEvaluatorMap(
-        Dictionary<string, LatestIndicatorSnapshot>? snapshots)
-    {
-        var result = new Dictionary<string, Dictionary<string, System.Text.Json.JsonElement>>(
-            StringComparer.OrdinalIgnoreCase);
-        if (snapshots is null)
-        {
-            return result;
-        }
-
-        foreach (var (code, snapshot) in snapshots)
-        {
-            result[code] = IndicatorValueMaps.ToFields(snapshot.Values);
-        }
-
-        return result;
     }
 }

@@ -1,7 +1,6 @@
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
 using TechnicalScanner.Application.Abstractions;
-using TechnicalScanner.Application.Profiles;
 using TechnicalScanner.Application.Services.Queries;
 using TechnicalScanner.Application.Signals;
 using TechnicalScanner.Domain.Entities;
@@ -32,8 +31,8 @@ public sealed class SignalEvaluationService(
 
         foreach (var ticker in tickers)
         {
-            var current = ToMap(pair.Current.GetValueOrDefault(ticker.Id));
-            var previous = ToMap(pair.Previous.GetValueOrDefault(ticker.Id));
+            var current = LatestIndicatorLookup.ToEvaluatorMap(pair.Current.GetValueOrDefault(ticker.Id));
+            var previous = LatestIndicatorLookup.ToEvaluatorMap(pair.Previous.GetValueOrDefault(ticker.Id));
             var valuesJson = JsonSerializer.Serialize(current);
 
             foreach (var signal in signals)
@@ -71,22 +70,5 @@ public sealed class SignalEvaluationService(
         await dbContext.SaveChangesAsync(cancellationToken);
         logger.LogInformation("Evaluated {Count} signal results.", evaluated);
         return evaluated;
-    }
-
-    private static Dictionary<string, Dictionary<string, JsonElement>> ToMap(
-        Dictionary<string, LatestIndicatorSnapshot>? snapshots)
-    {
-        var result = new Dictionary<string, Dictionary<string, JsonElement>>(StringComparer.OrdinalIgnoreCase);
-        if (snapshots is null)
-        {
-            return result;
-        }
-
-        foreach (var (code, snapshot) in snapshots)
-        {
-            result[code] = IndicatorValueMaps.ToFields(snapshot.Values);
-        }
-
-        return result;
     }
 }

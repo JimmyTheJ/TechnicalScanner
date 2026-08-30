@@ -12,9 +12,11 @@ const defaultMetrics = [
   'SMA_200_D_ABOVE_PCT',
   'SMA_50_W_ABOVE_PCT',
   'BB_20_2_D_BELOW_LOWER_PCT',
+  'PROFILE_DEEP_PULLBACK_PCT',
 ]
 
 export function BreadthPage() {
+  const [universe, setUniverse] = useState('ALL')
   const [latest, setLatest] = useState<BreadthSnapshot[]>([])
   const [selectedMetric, setSelectedMetric] = useState(defaultMetrics[0])
   const [history, setHistory] = useState<BreadthSnapshot[]>([])
@@ -27,10 +29,14 @@ export function BreadthPage() {
     async function loadLatest() {
       try {
         setLoading(true)
-        const latestResult = await api.getBreadthLatest()
+        const latestResult = await api.getBreadthLatest(universe)
         if (!cancelled) {
           setLatest(latestResult)
-          setSelectedMetric((current) => current || latestResult[0]?.metricCode || defaultMetrics[0])
+          setSelectedMetric((current) =>
+            latestResult.some((item) => item.metricCode === current)
+              ? current
+              : latestResult[0]?.metricCode || defaultMetrics[0],
+          )
           setError(null)
         }
       } catch (err) {
@@ -48,7 +54,7 @@ export function BreadthPage() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [universe])
 
   useEffect(() => {
     if (!selectedMetric) {
@@ -56,7 +62,7 @@ export function BreadthPage() {
     }
 
     let cancelled = false
-    void api.getBreadthHistory(selectedMetric).then((result) => {
+    void api.getBreadthHistory(selectedMetric, universe).then((result) => {
       if (!cancelled) {
         setHistory(result)
       }
@@ -65,7 +71,7 @@ export function BreadthPage() {
     return () => {
       cancelled = true
     }
-  }, [selectedMetric])
+  }, [selectedMetric, universe])
 
   if (loading) {
     return <LoadingState message="Loading breadth metrics…" />
@@ -81,14 +87,22 @@ export function BreadthPage() {
   }))
 
   const metricOptions = [...new Set([...defaultMetrics, ...latest.map((item) => item.metricCode)])]
+  const universes = ['ALL', 'US', 'CA']
 
   return (
     <div className="page-stack">
       <section className="panel-card">
         <div className="panel-header">
           <h2>Breadth Dashboard</h2>
+          <select value={universe} onChange={(e) => setUniverse(e.target.value)}>
+            {universes.map((code) => (
+              <option key={code} value={code}>
+                {code === 'ALL' ? 'All markets' : code}
+              </option>
+            ))}
+          </select>
         </div>
-        <BreadthBarChart title="Latest Breadth Metrics" items={barItems} />
+        <BreadthBarChart title={`Latest breadth · ${universe}`} items={barItems} />
       </section>
 
       <section className="panel-card">

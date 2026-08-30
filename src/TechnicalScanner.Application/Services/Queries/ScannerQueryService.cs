@@ -29,7 +29,11 @@ public sealed class ScannerQueryService(
                 MetricCode = b.MetricCode,
                 TotalValidStocks = b.TotalValidStocks,
                 MatchCount = b.MatchCount,
-                MatchPct = b.MatchPct
+                MatchPct = b.MatchPct,
+                MedianValue = b.MedianValue,
+                AverageValue = b.AverageValue,
+                UniverseName = b.UniverseName,
+                Country = b.Country
             })
             .ToList();
 
