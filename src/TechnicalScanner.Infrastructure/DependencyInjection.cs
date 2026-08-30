@@ -105,6 +105,11 @@ internal static class SeedData
         EnsureIndicator(db, "VOL_SMA_20_D", "20 Day Volume SMA", "VOLUME", "D", new { period = 20 });
         EnsureIndicator(db, "ATR_14_D", "14 Day ATR", "ATR", "D", new { period = 14 });
         EnsureIndicator(db, "RANGE_252_D", "252 Day High/Low Range", "PRICE_RANGE", "D", new { period = 252 });
+        EnsureIndicator(db, "ROC_21_D", "21 Day Rate of Change", "ROC", "D", new { period = 21 });
+        EnsureIndicator(db, "ROC_63_D", "63 Day Rate of Change", "ROC", "D", new { period = 63 });
+        EnsureIndicator(db, "RS_SPY_63_D", "63 Day vs SPY", "RELATIVE_STRENGTH", "D", new { period = 63, benchmarkSymbol = "SPY" });
+        EnsureIndicator(db, "RS_QQQ_63_D", "63 Day vs QQQ", "RELATIVE_STRENGTH", "D", new { period = 63, benchmarkSymbol = "QQQ" });
+        EnsureIndicator(db, "RS_XIU_63_D", "63 Day vs XIU.TO", "RELATIVE_STRENGTH", "D", new { period = 63, benchmarkSymbol = "XIU.TO" });
 
         if (!await db.SignalDefinitions.AnyAsync(cancellationToken))
         {
@@ -195,6 +200,24 @@ internal static class SeedData
                 Weight("deepVs200d", "SMA_200_D", "distanceFromSmaPct", "<", -10, 2),
                 Weight("weakRsi", "RSI_14_D", "rsi", "<", 40, 1),
                 Weight("highRelativeVolume", "VOL_SMA_20_D", "relativeVolume", ">", 1.5, 1)
+            ]);
+
+        EnsureProfile(
+            db,
+            "WEAK_VS_SPY",
+            "Weak vs SPY",
+            "Lagging SPY over 63 days with a negative 21-day return.",
+            new ProfileUniverse { IncludeEtfs = true },
+            [Spec("RS_SPY_63_D"), Spec("ROC_21_D")],
+            """
+            {"all":[
+              {"indicatorCode":"RS_SPY_63_D","field":"relativeStrengthPct","operator":"<","value":0},
+              {"indicatorCode":"ROC_21_D","field":"rocPct","operator":"<","value":0}
+            ]}
+            """,
+            [
+                Weight("laggingSpy", "RS_SPY_63_D", "relativeStrengthPct", "<", 0, 2),
+                Weight("negativeRoc21", "ROC_21_D", "rocPct", "<", 0, 1)
             ]);
 
         await db.SaveChangesAsync(cancellationToken);

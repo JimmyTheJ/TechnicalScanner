@@ -58,4 +58,26 @@ public class IndicatorMathTests
     {
         Assert.Equal(8m, IndicatorMath.TrueRange(12, 10, 4));
     }
+
+    [Fact]
+    public void CloseOnOrBefore_PicksLatestEligibleClose()
+    {
+        var series = new (DateOnly Date, decimal Close)[]
+        {
+            (new DateOnly(2020, 1, 2), 10m),
+            (new DateOnly(2020, 1, 3), 11m),
+            (new DateOnly(2020, 1, 6), 12m)
+        };
+
+        Assert.Equal(11m, IndicatorMath.CloseOnOrBefore(series, new DateOnly(2020, 1, 5)));
+        Assert.Equal(12m, IndicatorMath.CloseOnOrBefore(series, new DateOnly(2020, 1, 6)));
+        Assert.Null(IndicatorMath.CloseOnOrBefore(series, new DateOnly(2019, 12, 31)));
+    }
+
+    [Fact]
+    public void SanitizeCodeToken_ReplacesPunctuation()
+    {
+        Assert.Equal("XIU_TO", IndicatorMath.SanitizeCodeToken("XIU.TO"));
+        Assert.Equal("SPY", IndicatorMath.SanitizeCodeToken("spy"));
+    }
 }

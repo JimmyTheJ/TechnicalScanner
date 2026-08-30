@@ -166,6 +166,32 @@ public class SignalRuleEvaluatorTests
         Assert.False(evaluator.Evaluate(falling, Values(40)));
     }
 
+    [Fact]
+    public void Evaluate_InAndNotIn_MatchAnyListedValue()
+    {
+        var evaluator = new SignalRuleEvaluator();
+        var values = new Dictionary<string, Dictionary<string, System.Text.Json.JsonElement>>
+        {
+            ["RSI_14_D"] = new()
+            {
+                ["category"] = System.Text.Json.JsonSerializer.SerializeToElement("Oversold")
+            }
+        };
+
+        Assert.True(evaluator.Evaluate(
+            """{"indicatorCode":"RSI_14_D","field":"category","operator":"in","value":["Oversold","Weak"]}""",
+            values));
+        Assert.True(evaluator.Evaluate(
+            """{"indicatorCode":"RSI_14_D","field":"category","operator":"in","value":"Oversold,Weak"}""",
+            values));
+        Assert.False(evaluator.Evaluate(
+            """{"indicatorCode":"RSI_14_D","field":"category","operator":"in","value":["Neutral"]}""",
+            values));
+        Assert.True(evaluator.Evaluate(
+            """{"indicatorCode":"RSI_14_D","field":"category","operator":"not_in","value":["Strong","Overbought"]}""",
+            values));
+    }
+
     private static Dictionary<string, Dictionary<string, System.Text.Json.JsonElement>> Values(decimal rsi)
         => new()
         {

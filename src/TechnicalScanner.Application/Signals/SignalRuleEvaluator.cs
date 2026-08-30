@@ -166,6 +166,8 @@ public sealed class SignalRuleEvaluator
         ">=" => AsDecimal(actual) >= AsDecimal(expected),
         "between" => InRange(actual, expected),
         "not_between" => !InRange(actual, expected),
+        "in" => InList(actual, expected),
+        "not_in" => !InList(actual, expected),
         "crossed_above" => previous is { } prior &&
             AsDecimal(prior) < AsDecimal(expected) &&
             AsDecimal(actual) >= AsDecimal(expected),
@@ -214,6 +216,33 @@ public sealed class SignalRuleEvaluator
         }
 
         throw new InvalidOperationException("between/not_between requires a [min, max] value.");
+    }
+
+    private static bool InList(JsonElement actual, JsonElement expected)
+    {
+        var needle = actual.ToString();
+        return ReadList(expected).Any(item => string.Equals(item, needle, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static IReadOnlyList<string> ReadList(JsonElement expected)
+    {
+        if (expected.ValueKind == JsonValueKind.Array)
+        {
+            return expected.EnumerateArray()
+                .Select(item => item.ToString())
+                .Where(item => !string.IsNullOrWhiteSpace(item))
+                .ToList();
+        }
+
+        if (expected.ValueKind == JsonValueKind.String)
+        {
+            return (expected.GetString() ?? string.Empty)
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .ToList();
+        }
+
+        var single = expected.ToString();
+        return string.IsNullOrWhiteSpace(single) ? [] : [single];
     }
 
     private static decimal AsDecimal(JsonElement element) => element.ValueKind switch

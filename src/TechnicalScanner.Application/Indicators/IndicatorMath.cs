@@ -117,6 +117,49 @@ public static class IndicatorMath
         return ((price - reference) / reference) * 100m;
     }
 
+    public static decimal? CloseOnOrBefore(IReadOnlyList<(DateOnly Date, decimal Close)> series, DateOnly date)
+    {
+        if (series.Count == 0)
+        {
+            return null;
+        }
+
+        var lo = 0;
+        var hi = series.Count - 1;
+        var found = -1;
+        while (lo <= hi)
+        {
+            var mid = lo + ((hi - lo) / 2);
+            if (series[mid].Date <= date)
+            {
+                found = mid;
+                lo = mid + 1;
+            }
+            else
+            {
+                hi = mid - 1;
+            }
+        }
+
+        return found >= 0 ? series[found].Close : null;
+    }
+
+    public static string SanitizeCodeToken(string value)
+    {
+        var chars = value
+            .Trim()
+            .ToUpperInvariant()
+            .Select(ch => char.IsLetterOrDigit(ch) ? ch : '_')
+            .ToArray();
+        var token = new string(chars).Trim('_');
+        while (token.Contains("__", StringComparison.Ordinal))
+        {
+            token = token.Replace("__", "_", StringComparison.Ordinal);
+        }
+
+        return string.IsNullOrWhiteSpace(token) ? "BENCH" : token;
+    }
+
     public static string ClassifyRsi(decimal rsi) => rsi switch
     {
         < 30 => "Oversold",

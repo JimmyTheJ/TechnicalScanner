@@ -29,6 +29,8 @@ const operators = [
   '>=',
   'between',
   'not_between',
+  'in',
+  'not_in',
   'crossed_above',
   'crossed_below',
   'rising',
@@ -59,6 +61,7 @@ export function ProfilesPage() {
   const [newTimeframe, setNewTimeframe] = useState('D')
   const [newPeriod, setNewPeriod] = useState(20)
   const [newStdDev, setNewStdDev] = useState(2)
+  const [newBenchmark, setNewBenchmark] = useState('SPY')
   const [existingCode, setExistingCode] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -180,6 +183,9 @@ export function ProfilesPage() {
     if (selectedType.parameters.some((item) => item.name === 'emaPeriod')) {
       parameters.emaPeriod = 21
     }
+    if (selectedType.parameters.some((item) => item.name === 'benchmarkSymbol')) {
+      parameters.benchmarkSymbol = newBenchmark.trim().toUpperCase() || 'SPY'
+    }
 
     const code = suggestCode(selectedType.indicatorType, newTimeframe, parameters)
     if (form.indicators.some((item) => item.code === code)) {
@@ -297,8 +303,8 @@ export function ProfilesPage() {
           <p className="eyebrow">Cheapness profiles</p>
           <h2>Define what “cheap” means</h2>
           <p className="muted">
-            Stack metrics, save the recipe in the database, then open the screener. New SMA/EMA/volume/ATR/range
-            definitions are created on save.
+            Stack metrics, save the recipe in the database, then open the screener. New SMA/EMA/volume/ATR/range/ROC
+            and relative-strength definitions are created on save.
           </p>
         </div>
         <button type="button" className="button secondary" onClick={startNew}>
@@ -483,6 +489,16 @@ export function ProfilesPage() {
             <label>
               Std dev
               <input type="number" value={newStdDev} onChange={(e) => setNewStdDev(Number(e.target.value))} />
+            </label>
+          ) : null}
+          {selectedType?.parameters.some((item) => item.name === 'benchmarkSymbol') ? (
+            <label>
+              Benchmark
+              <input
+                value={newBenchmark}
+                placeholder="SPY"
+                onChange={(e) => setNewBenchmark(e.target.value)}
+              />
             </label>
           ) : null}
         </div>
@@ -815,12 +831,19 @@ function operatorUsesRange(operator: string): boolean {
   return operator === 'between' || operator === 'not_between'
 }
 
+function operatorUsesList(operator: string): boolean {
+  return operator === 'in' || operator === 'not_in'
+}
+
 function valuePlaceholder(operator: string): string {
   if (operatorOmitsValue(operator)) {
     return 'n/a'
   }
   if (operatorUsesRange(operator)) {
     return 'min,max'
+  }
+  if (operatorUsesList(operator)) {
+    return 'a,b,c'
   }
   return 'value'
 }
@@ -850,6 +873,9 @@ function coerceRuleValue(raw: string, operator: string, valueType?: string): unk
   if (operatorUsesRange(operator)) {
     return parseRange(raw)
   }
+  if (operatorUsesList(operator)) {
+    return parseList(raw)
+  }
   return coerceValue(raw, valueType)
 }
 
@@ -859,6 +885,13 @@ function parseRange(raw: string): [number, number] | string {
     return [Number(parts[0]), Number(parts[1])]
   }
   return raw
+}
+
+function parseList(raw: string): string[] {
+  return raw
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean)
 }
 
 function coerceValue(raw: string, valueType?: string): string | number | boolean {
@@ -895,6 +928,15 @@ function suggestCode(type: string, timeframe: string, parameters: Record<string,
       return `VOL_SMA_${period}_${tf}`
     case 'PRICE_RANGE':
       return `RANGE_${period}_${tf}`
+    case 'ROC':
+      return `ROC_${period}_${tf}`
+    case 'RELATIVE_STRENGTH': {
+      const bench = String(parameters.benchmarkSymbol ?? 'SPY')
+        .toUpperCase()
+        .replace(/[^A-Z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '')
+      return `RS_${bench || 'SPY'}_${period}_${tf}`
+    }
     case 'BOLLINGER_BANDS':
       return `BB_${period}_${parameters.stdDevMultiplier ?? 2}_${tf}`
     case 'BMSB':
@@ -905,5 +947,11 @@ function suggestCode(type: string, timeframe: string, parameters: Record<string,
 }
 
 function suggestName(type: string, timeframe: string, parameters: Record<string, unknown>): string {
+  if (type === 'RELATIVE_STRENGTH') {
+    return `${parameters.period ?? ''} ${timeframe} vs ${String(parameters.benchmarkSymbol ?? 'SPY')}`.trim()
+  }
+  if (type === 'ROC') {
+    return `${parameters.period ?? ''} ${timeframe} ROC`.trim()
+  }
   return `${type} ${parameters.period ?? ''} ${timeframe}`.trim()
 }

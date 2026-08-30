@@ -187,6 +187,8 @@ export function StockDetailPage() {
   const rsiMonthly = metric(indicators, 'RSI_14_M', 'rsi')
   const sma200 = metric(indicators, 'SMA_200_D', 'distanceFromSmaPct')
   const sma50w = metric(indicators, 'SMA_50_W', 'distanceFromSmaPct')
+  const roc21 = metric(indicators, 'ROC_21_D', 'rocPct')
+  const vsSpy = metric(indicators, 'RS_SPY_63_D', 'relativeStrengthPct')
   const bollinger = text(indicators, 'BB_20_2_D', 'status')
   const bmsb = text(indicators, 'BMSB_W', 'status')
 
@@ -238,6 +240,14 @@ export function StockDetailPage() {
         <article className="metric-chip">
           <span>vs 50W SMA</span>
           <strong>{formatPercent(sma50w)}</strong>
+        </article>
+        <article className="metric-chip">
+          <span>21D ROC</span>
+          <strong>{formatPercent(roc21)}</strong>
+        </article>
+        <article className="metric-chip">
+          <span>vs SPY 63D</span>
+          <strong>{formatPercent(vsSpy)}</strong>
         </article>
         <article className="metric-chip">
           <span>Bollinger</span>

@@ -62,6 +62,56 @@ public class NewIndicatorCalculatorTests
         Assert.Equal(80m, ReadDecimal(latest.Values, "periodLow"));
     }
 
+    [Fact]
+    public async Task RocCalculator_MeasuresPercentChangeVsPriorClose()
+    {
+        var candles = new[]
+        {
+            Candle(0, 100m),
+            Candle(1, 110m),
+            Candle(2, 121m)
+        };
+        var calculator = new RocIndicatorCalculator();
+        var results = await calculator.CalculateAsync(
+            Ticker(),
+            Definition("ROC", "D", """{"period":2}"""),
+            candles,
+            CancellationToken.None);
+
+        Assert.Single(results);
+        Assert.Equal(21m, results[0].PrimaryValue);
+        Assert.Equal(100m, ReadDecimal(results[0].Values, "priorClose"));
+    }
+
+    [Fact]
+    public async Task RelativeStrengthCalculator_SubtractsBenchmarkReturn()
+    {
+        var start = new DateOnly(2020, 1, 2);
+        var stock = new[]
+        {
+            Candle(0, 100m),
+            Candle(1, 100m),
+            Candle(2, 110m)
+        };
+        var spy = new (DateOnly Date, decimal Close)[]
+        {
+            (start, 50m),
+            (start.AddDays(1), 50m),
+            (start.AddDays(2), 50m)
+        };
+        var calculator = new RelativeStrengthIndicatorCalculator(new FixedBenchmarkLookup(spy));
+        var results = await calculator.CalculateAsync(
+            Ticker(),
+            Definition("RELATIVE_STRENGTH", "D", """{"period":2,"benchmarkSymbol":"SPY"}"""),
+            stock,
+            CancellationToken.None);
+
+        Assert.Single(results);
+        Assert.Equal(10m, results[0].PrimaryValue);
+        Assert.Equal(10m, ReadDecimal(results[0].Values, "stockReturnPct"));
+        Assert.Equal(0m, ReadDecimal(results[0].Values, "benchmarkReturnPct"));
+    }
+
     private static Ticker Ticker() => new()
     {
         Symbol = "TEST",
@@ -96,4 +146,11 @@ public class NewIndicatorCalculatorTests
 
     private static decimal? ReadDecimal(IReadOnlyDictionary<string, object?> values, string key)
         => values.TryGetValue(key, out var value) && value is decimal number ? number : null;
+
+    private sealed class FixedBenchmarkLookup(IReadOnlyList<(DateOnly Date, decimal Close)> closes)
+        : TechnicalScanner.Application.Abstractions.IBenchmarkPriceLookup
+    {
+        public IReadOnlyList<(DateOnly Date, decimal Close)> GetCloses(string symbol, string timeframe)
+            => closes;
+    }
 }

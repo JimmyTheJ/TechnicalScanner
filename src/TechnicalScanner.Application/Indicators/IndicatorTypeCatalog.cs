@@ -134,6 +134,33 @@ public static class IndicatorTypeCatalog
                 new("periodHigh", "number", "Highest high in the window"),
                 new("periodLow", "number", "Lowest low in the window"),
                 new("close", "number", "Close used in the calculation")
+            ]),
+        new(
+            "ROC",
+            "Rate of change",
+            "Percent change versus the close N bars ago.",
+            "ROC_{period}_{timeframe}",
+            [new("period", "number", 21, "Lookback in bars")],
+            [
+                new("rocPct", "number", "Percent change versus the close N bars ago"),
+                new("priorClose", "number", "Close N bars ago"),
+                new("close", "number", "Close used in the calculation")
+            ]),
+        new(
+            "RELATIVE_STRENGTH",
+            "Relative strength vs benchmark",
+            "Excess return versus a benchmark such as SPY, QQQ, or XIU.TO.",
+            "RS_{benchmark}_{period}_{timeframe}",
+            [
+                new("period", "number", 63, "Lookback in bars"),
+                new("benchmarkSymbol", "string", "SPY", "Benchmark ticker (SPY, QQQ, XIU.TO, …)")
+            ],
+            [
+                new("relativeStrengthPct", "number", "Stock return minus benchmark return, in percent"),
+                new("stockReturnPct", "number", "Stock percent return over the window"),
+                new("benchmarkReturnPct", "number", "Benchmark percent return over the window"),
+                new("benchmarkSymbol", "string", "Benchmark ticker used"),
+                new("close", "number", "Close used in the calculation")
             ])
     ];
 
@@ -153,6 +180,8 @@ public static class IndicatorTypeCatalog
             "VOLUME" => $"VOL_SMA_{period}_{tf}",
             "ATR" => $"ATR_{period}_{tf}",
             "PRICE_RANGE" => $"RANGE_{period}_{tf}",
+            "ROC" => $"ROC_{period}_{tf}",
+            "RELATIVE_STRENGTH" => $"RS_{IndicatorMath.SanitizeCodeToken(ReadString(parameters, "benchmarkSymbol"))}_{period}_{tf}",
             "BOLLINGER_BANDS" => $"BB_{period}_{ReadNumber(parameters, "stdDevMultiplier")}_{tf}",
             "BMSB" => $"BMSB_{tf}",
             _ => $"{type}_{period}_{tf}"
@@ -177,6 +206,8 @@ public static class IndicatorTypeCatalog
             "VOLUME" => $"{period} {tfLabel} Volume SMA",
             "ATR" => $"{period} {tfLabel} ATR",
             "PRICE_RANGE" => $"{period} {tfLabel} High/Low Range",
+            "ROC" => $"{period} {tfLabel} Rate of Change",
+            "RELATIVE_STRENGTH" => $"{period} {tfLabel} vs {ReadString(parameters, "benchmarkSymbol")}",
             "BOLLINGER_BANDS" => $"{tfLabel} Bollinger Bands {period}/{ReadNumber(parameters, "stdDevMultiplier")}",
             "BMSB" => "Bull Market Support Band",
             _ => $"{indicatorType} {period} {tfLabel}"
@@ -189,6 +220,18 @@ public static class IndicatorTypeCatalog
            value.TryGetInt32(out var parsed)
             ? parsed
             : 0;
+
+    private static string ReadString(JsonElement parameters, string name)
+    {
+        if (parameters.ValueKind != JsonValueKind.Object || !parameters.TryGetProperty(name, out var value))
+        {
+            return "SPY";
+        }
+
+        return value.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(value.GetString())
+            ? value.GetString()!
+            : "SPY";
+    }
 
     private static string ReadNumber(JsonElement parameters, string name)
     {

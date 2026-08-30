@@ -20,7 +20,10 @@ public static class DependencyInjection
         services.AddSingleton<IIndicatorCalculator, VolumeIndicatorCalculator>();
         services.AddSingleton<IIndicatorCalculator, AtrIndicatorCalculator>();
         services.AddSingleton<IIndicatorCalculator, PriceRangeIndicatorCalculator>();
-        services.AddSingleton<IndicatorCalculatorRegistry>();
+        services.AddSingleton<IIndicatorCalculator, RocIndicatorCalculator>();
+        services.AddScoped<IBenchmarkPriceLookup, BenchmarkPriceLookup>();
+        services.AddScoped<IIndicatorCalculator, RelativeStrengthIndicatorCalculator>();
+        services.AddScoped<IndicatorCalculatorRegistry>();
         services.AddScoped<SignalRuleEvaluator>();
         services.AddScoped<ITickerOperationLogger, TickerOperationLogger>();
         services.AddScoped<TickerImportService>();
