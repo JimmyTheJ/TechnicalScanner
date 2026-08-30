@@ -1,3 +1,4 @@
+using System.Net;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using TechnicalScanner.Application.Abstractions;
@@ -7,17 +8,31 @@ using TechnicalScanner.Domain.Enums;
 
 namespace TechnicalScanner.Infrastructure.MarketData;
 
-public sealed class ResilientRateLimitedMarketDataProvider(
-    IMarketDataProvider inner,
-    IOptions<MarketDataOptions> options,
-    ILogger<ResilientRateLimitedMarketDataProvider> logger) : IMarketDataProvider
+public sealed class ResilientRateLimitedMarketDataProvider : IMarketDataProvider
 {
+    private readonly IMarketDataProvider _inner;
+    private readonly IOptions<MarketDataOptions> _options;
+    private readonly ILogger<ResilientRateLimitedMarketDataProvider> _logger;
+    private readonly Func<TimeSpan, CancellationToken, Task> _delayAsync;
     private readonly SemaphoreSlim _rateLimiter = new(1, 1);
     private DateTimeOffset _nextRequestUtc = DateTimeOffset.MinValue;
+    private int _consecutiveTooManyRequests;
+
+    public ResilientRateLimitedMarketDataProvider(
+        IMarketDataProvider inner,
+        IOptions<MarketDataOptions> options,
+        ILogger<ResilientRateLimitedMarketDataProvider> logger,
+        Func<TimeSpan, CancellationToken, Task>? delayAsync = null)
+    {
+        _inner = inner;
+        _options = options;
+        _logger = logger;
+        _delayAsync = delayAsync ?? ((delay, cancellationToken) => Task.Delay(delay, cancellationToken));
+    }
 
     public Task<IReadOnlyList<TickerDto>> GetTickersAsync(CancellationToken cancellationToken)
         => ExecuteWithRetryAsync(
-            () => inner.GetTickersAsync(cancellationToken),
+            () => _inner.GetTickersAsync(cancellationToken),
             "get-tickers",
             cancellationToken);
 
@@ -30,7 +45,7 @@ public sealed class ResilientRateLimitedMarketDataProvider(
         DateOnly endDate,
         CancellationToken cancellationToken)
         => ExecuteWithRetryAsync(
-            () => inner.GetHistoricalCandlesAsync(symbol, exchange, country, timeframe, startDate, endDate, cancellationToken),
+            () => _inner.GetHistoricalCandlesAsync(symbol, exchange, country, timeframe, startDate, endDate, cancellationToken),
             $"get-candles:{symbol}",
             cancellationToken);
 
@@ -39,23 +54,37 @@ public sealed class ResilientRateLimitedMarketDataProvider(
         string operation,
         CancellationToken cancellationToken)
     {
-        var settings = options.Value;
-        Exception? lastException = null;
+        var settings = _options.Value;
+        var attempt = 0;
 
-        for (var attempt = 1; attempt <= settings.MaxRetries; attempt++)
+        while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            attempt++;
 
             try
             {
                 await WaitForRateLimitAsync(settings.RequestsPerSecond, cancellationToken);
-                return await action();
+                var result = await action();
+                ResetTooManyRequestsBackoff();
+                return result;
+            }
+            catch (Exception ex) when (IsTooManyRequests(ex))
+            {
+                var delay = RegisterTooManyRequestsDelay(settings.TooManyRequestsDelayMinutes);
+                _logger.LogWarning(
+                    ex,
+                    "Market data rate limited (429) during {Operation}. Consecutive 429s: {Consecutive}. Waiting {DelayMinutes} minutes before retrying.",
+                    operation,
+                    _consecutiveTooManyRequests,
+                    delay.TotalMinutes);
+
+                await _delayAsync(delay, cancellationToken);
             }
             catch (Exception ex) when (attempt < settings.MaxRetries && IsTransient(ex))
             {
-                lastException = ex;
                 var delay = TimeSpan.FromSeconds(settings.RetryDelaySeconds * attempt);
-                logger.LogWarning(
+                _logger.LogWarning(
                     ex,
                     "Transient market data failure during {Operation}. Retry {Attempt}/{MaxRetries} in {DelaySeconds}s.",
                     operation,
@@ -63,12 +92,19 @@ public sealed class ResilientRateLimitedMarketDataProvider(
                     settings.MaxRetries,
                     delay.TotalSeconds);
 
-                await Task.Delay(delay, cancellationToken);
+                await _delayAsync(delay, cancellationToken);
             }
         }
-
-        throw lastException ?? new InvalidOperationException($"Market data operation failed: {operation}");
     }
+
+    private TimeSpan RegisterTooManyRequestsDelay(int baseDelayMinutes)
+    {
+        var consecutive = Interlocked.Increment(ref _consecutiveTooManyRequests);
+        return MarketDataBackoff.TooManyRequestsDelay(consecutive, baseDelayMinutes);
+    }
+
+    private void ResetTooManyRequestsBackoff()
+        => Interlocked.Exchange(ref _consecutiveTooManyRequests, 0);
 
     private async Task WaitForRateLimitAsync(double requestsPerSecond, CancellationToken cancellationToken)
     {
@@ -84,7 +120,7 @@ public sealed class ResilientRateLimitedMarketDataProvider(
             var now = DateTimeOffset.UtcNow;
             if (_nextRequestUtc > now)
             {
-                await Task.Delay(_nextRequestUtc - now, cancellationToken);
+                await _delayAsync(_nextRequestUtc - now, cancellationToken);
             }
 
             _nextRequestUtc = DateTimeOffset.UtcNow + minInterval;
@@ -95,6 +131,22 @@ public sealed class ResilientRateLimitedMarketDataProvider(
         }
     }
 
+    private static bool IsTooManyRequests(Exception ex)
+        => ex is HttpRequestException { StatusCode: HttpStatusCode.TooManyRequests };
+
     private static bool IsTransient(Exception ex)
         => ex is HttpRequestException or TaskCanceledException or TimeoutException;
+}
+
+internal static class MarketDataBackoff
+{
+    public static TimeSpan TooManyRequestsDelay(int consecutiveFailures, int baseDelayMinutes)
+    {
+        if (consecutiveFailures <= 0 || baseDelayMinutes <= 0)
+        {
+            return TimeSpan.Zero;
+        }
+
+        return TimeSpan.FromMinutes((double)baseDelayMinutes * consecutiveFailures);
+    }
 }

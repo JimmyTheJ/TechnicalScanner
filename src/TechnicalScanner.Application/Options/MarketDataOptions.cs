@@ -12,6 +12,8 @@ public sealed class MarketDataOptions
 
     public int RetryDelaySeconds { get; set; } = 2;
 
+    public int TooManyRequestsDelayMinutes { get; set; } = 30;
+
     public int InitialHistoryYears { get; set; } = 10;
 
     public UniverseOptions Universe { get; set; } = new();
