@@ -16,7 +16,11 @@ public class ResilientRateLimitedMarketDataProviderTests
     [InlineData(2, 30, 30, 1, 60)]
     [InlineData(3, 30, 30, 1, 90)]
     [InlineData(4, 30, 30, 1, 120)]
-    [InlineData(4, 30, 30, 1.5, 180)]
+    [InlineData(1, 30, 10, 1.5, 30)]
+    [InlineData(2, 30, 10, 1.5, 60)]
+    [InlineData(3, 30, 10, 1.5, 105)]
+    [InlineData(4, 30, 10, 1.5, 172.5)]
+    [InlineData(2, 30, 30, 1.5, 90)]
     [InlineData(2, 30, 30, 0.5, 30)]
     [InlineData(4, 30, 30, 0, 0)]
     public void TooManyRequestsDelay_AppliesBaseAccruedAdditionAndMultiplier(
@@ -93,7 +97,7 @@ public class ResilientRateLimitedMarketDataProviderTests
             RequestsPerSecond = 0,
             MaxRetries = 2,
             TooManyRequestsDelayMinutes = 30,
-            TooManyRequestsAdditionalMinutes = 30,
+            TooManyRequestsAdditionalMinutes = 10,
             TooManyRequestsMultiplier = 1.5
         };
 
@@ -103,10 +107,10 @@ public class ResilientRateLimitedMarketDataProviderTests
 
         Assert.Equal(
             [
-                TimeSpan.FromMinutes(45),
-                TimeSpan.FromMinutes(90),
-                TimeSpan.FromMinutes(135),
-                TimeSpan.FromMinutes(180)
+                TimeSpan.FromMinutes(30),
+                TimeSpan.FromMinutes(60),
+                TimeSpan.FromMinutes(105),
+                TimeSpan.FromMinutes(172.5)
             ],
             delays);
     }

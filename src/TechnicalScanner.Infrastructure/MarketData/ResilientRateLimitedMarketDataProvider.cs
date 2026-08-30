@@ -158,9 +158,15 @@ internal static class MarketDataBackoff
         var baseMinutes = Math.Max(0, baseDelayMinutes);
         var addition = Math.Max(0, additionalMinutes);
         var factor = multiplier < 0 ? 1 : multiplier;
-        var accruedAdditional = addition * Math.Max(0, consecutiveFailures - 2);
-        var newAccrual = consecutiveFailures == 1 ? 0 : addition;
-        var minutes = (baseMinutes + accruedAdditional + newAccrual) * factor;
-        return TimeSpan.FromMinutes(minutes);
+
+        // First 429 uses the base wait only; the multiplier is not applied.
+        var delayMinutes = baseMinutes;
+        for (var attempt = 2; attempt <= consecutiveFailures; attempt++)
+        {
+            var accruedAdditional = Math.Max(0, delayMinutes - baseMinutes);
+            delayMinutes = (baseMinutes + accruedAdditional + addition) * factor;
+        }
+
+        return TimeSpan.FromMinutes(delayMinutes);
     }
 }
