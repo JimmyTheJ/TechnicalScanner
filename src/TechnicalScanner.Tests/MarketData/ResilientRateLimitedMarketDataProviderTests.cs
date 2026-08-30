@@ -18,6 +18,7 @@ public class ResilientRateLimitedMarketDataProviderTests
     [InlineData(4, 30, 30, 1, 120)]
     [InlineData(4, 30, 30, 1.5, 180)]
     [InlineData(2, 30, 30, 0.5, 30)]
+    [InlineData(4, 30, 30, 0, 0)]
     public void TooManyRequestsDelay_AppliesBaseAccruedAdditionAndMultiplier(
         int consecutive,
         double baseMinutes,
@@ -31,10 +32,10 @@ public class ResilientRateLimitedMarketDataProviderTests
     }
 
     [Fact]
-    public void TooManyRequestsDelay_ClampsNegativeMultiplierToZero()
+    public void TooManyRequestsDelay_ClampsNegativeMultiplierToOne()
     {
         Assert.Equal(
-            TimeSpan.Zero,
+            TimeSpan.FromMinutes(120),
             MarketDataBackoff.TooManyRequestsDelay(4, 30, 30, -1.5));
     }
 

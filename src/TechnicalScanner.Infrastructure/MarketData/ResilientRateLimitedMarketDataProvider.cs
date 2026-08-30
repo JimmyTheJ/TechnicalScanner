@@ -157,7 +157,7 @@ internal static class MarketDataBackoff
 
         var baseMinutes = Math.Max(0, baseDelayMinutes);
         var addition = Math.Max(0, additionalMinutes);
-        var factor = Math.Max(0, multiplier);
+        var factor = multiplier < 0 ? 1 : multiplier;
         var accruedAdditional = addition * Math.Max(0, consecutiveFailures - 2);
         var newAccrual = consecutiveFailures == 1 ? 0 : addition;
         var minutes = (baseMinutes + accruedAdditional + newAccrual) * factor;
