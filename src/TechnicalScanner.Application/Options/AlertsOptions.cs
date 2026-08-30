@@ -12,6 +12,12 @@ public sealed class AlertsOptions
 
     public bool NotifyOnSignalCleared { get; set; }
 
+    public bool NotifyOnProfileEntered { get; set; } = true;
+
+    public bool NotifyOnProfileExited { get; set; }
+
+    public List<string> ProfileCodes { get; set; } = [];
+
     public decimal CompositeScoreThreshold { get; set; } = 4;
 
     public string CompositeScoreCode { get; set; } = "DEEP_PULLBACK";

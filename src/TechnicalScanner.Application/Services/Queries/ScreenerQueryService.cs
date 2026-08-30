@@ -32,7 +32,10 @@ public sealed class ScreenerQueryService(
         }
 
         var tickerIds = tickers.Select(t => t.Id).ToHashSet();
-        tickerIds = ProfileUniverseQuery.ApplyMarketFilters(dbContext, tickerIds, universe);
+        if (query.ParsedSymbols().Count == 0)
+        {
+            tickerIds = ProfileUniverseQuery.ApplyMarketFilters(dbContext, tickerIds, universe);
+        }
         tickerIds = ApplyLatestPrimaryFilters(tickerIds, query);
         tickers = tickers.Where(t => tickerIds.Contains(t.Id)).ToList();
         if (tickers.Count == 0)
@@ -122,7 +125,13 @@ public sealed class ScreenerQueryService(
         ScreenerQuery filters,
         ProfileUniverse universe)
     {
-        var country = filters.Country ?? universe.Country;
+        var symbols = filters.ParsedSymbols().ToList();
+        if (symbols.Count > 0)
+        {
+            query = query.Where(t => symbols.Contains(t.Symbol));
+        }
+
+        var country = symbols.Count > 0 ? filters.Country : (filters.Country ?? universe.Country);
         if (!string.IsNullOrWhiteSpace(country))
         {
             query = query.Where(t => t.Country == country);
@@ -153,7 +162,7 @@ public sealed class ScreenerQueryService(
             query = query.Where(t => t.MarketCap <= filters.MaxMarketCap);
         }
 
-        if (!universe.IncludeEtfs)
+        if (symbols.Count == 0 && !universe.IncludeEtfs)
         {
             query = query.Where(t => !t.IsEtf);
         }

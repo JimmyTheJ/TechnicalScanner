@@ -93,6 +93,7 @@ export const api = {
         maxBollingerPercentB: filters.maxBollingerPercentB,
         profile: filters.profile,
         profileMatchOnly: filters.profile ? Boolean(filters.profileMatchOnly) : undefined,
+        symbols: filters.symbols,
         search: filters.search,
         sort: filters.sort ?? 'compositeScoreDesc',
         page: filters.page ?? 1,

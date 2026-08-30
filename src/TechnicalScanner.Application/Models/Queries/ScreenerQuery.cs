@@ -22,7 +22,26 @@ public sealed class ScreenerQuery
     public decimal? MaxBollingerPercentB { get; set; }
     public string? Profile { get; set; }
     public bool ProfileMatchOnly { get; set; }
+    public string? Symbols { get; set; }
     public string? Search { get; set; }
+
+    public IReadOnlyList<string> ParsedSymbols()
+        => ParseSymbols(Symbols);
+
+    public static IReadOnlyList<string> ParseSymbols(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return [];
+        }
+
+        return raw
+            .Split([',', ';', ' ', '\t', '\n', '\r'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(symbol => symbol.ToUpperInvariant())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(500)
+            .ToList();
+    }
     public string Sort { get; set; } = "compositeScoreDesc";
     public int Page { get; set; } = 1;
     public int PageSize { get; set; } = QueryPaging.DefaultPageSize;

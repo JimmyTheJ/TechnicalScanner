@@ -7,6 +7,7 @@ import { SectorHeatmap } from '../components/SectorHeatmap'
 import { StatCard } from '../components/StatCard'
 import { ErrorState, LoadingState } from '../components/StateBlocks'
 import { formatDate, formatPercent, metricLabel, profileCodeFromMetric } from '../utils/format'
+import { loadWatchlists } from '../utils/storage'
 import { buildSectorHeatmap } from '../utils/sectorHeatmap'
 
 export function OverviewPage() {
@@ -15,6 +16,9 @@ export function OverviewPage() {
   const [heatmapRows, setHeatmapRows] = useState<ScreenerRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [watchlistStats, setWatchlistStats] = useState<
+    { id: string; name: string; total: number; matches: number }[]
+  >([])
 
   useEffect(() => {
     let cancelled = false
@@ -46,6 +50,54 @@ export function OverviewPage() {
     }
 
     void load()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    const lists = loadWatchlists().slice(0, 4)
+    if (lists.length === 0) {
+      setWatchlistStats([])
+      return
+    }
+
+    let cancelled = false
+
+    async function loadLists() {
+      const stats = await Promise.all(
+        lists.map(async (list) => {
+          if (list.symbols.length === 0) {
+            return { id: list.id, name: list.name, total: 0, matches: 0 }
+          }
+
+          try {
+            const result = await api.getScreener({
+              symbols: list.symbols.join(','),
+              profile: 'DEEP_PULLBACK',
+              profileMatchOnly: false,
+              page: 1,
+              pageSize: Math.min(200, Math.max(list.symbols.length, 1)),
+              sort: 'compositeScoreDesc',
+            })
+            return {
+              id: list.id,
+              name: list.name,
+              total: result.totalCount,
+              matches: result.items.filter((row) => (row.compositeScore ?? 0) > 0).length,
+            }
+          } catch {
+            return { id: list.id, name: list.name, total: list.symbols.length, matches: 0 }
+          }
+        }),
+      )
+
+      if (!cancelled) {
+        setWatchlistStats(stats)
+      }
+    }
+
+    void loadLists()
     return () => {
       cancelled = true
     }
@@ -115,6 +167,31 @@ export function OverviewPage() {
           </ul>
         </div>
       </section>
+
+      {watchlistStats.length > 0 ? (
+        <section className="panel-card">
+          <div className="panel-header">
+            <h3>Watchlists</h3>
+            <Link to="/watchlists">Manage</Link>
+          </div>
+          <p className="muted">Names on your lists that currently score above zero on Deep Pullback.</p>
+          <div className="metric-grid">
+            {watchlistStats.map((list) => (
+              <article key={list.id} className="metric-chip">
+                <p>{list.name}</p>
+                <strong>
+                  {list.matches}/{list.total}
+                </strong>
+                <Link
+                  to={`/screener?watchlist=${encodeURIComponent(list.id)}&profile=DEEP_PULLBACK&profileMatchOnly=false`}
+                >
+                  Screen
+                </Link>
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       {profileItems.length > 0 ? (
         <section className="panel-card">

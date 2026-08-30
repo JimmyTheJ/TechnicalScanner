@@ -5,7 +5,7 @@ import type { PagedResult, ScanProfile, ScreenerFilters, ScreenerRow, SignalDefi
 import { ScreenerTable } from '../components/ScreenerTable'
 import { ErrorState, LoadingState } from '../components/StateBlocks'
 import { exportScreenerToCsv } from '../utils/csv'
-import { createId, loadSavedFilters, saveSavedFilter } from '../utils/storage'
+import { createId, loadSavedFilters, loadWatchlists, saveSavedFilter } from '../utils/storage'
 
 const defaultFilters: ScreenerFilters = {
   sort: 'compositeScoreDesc',
@@ -23,6 +23,7 @@ export function ScreenerPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [saveName, setSaveName] = useState('')
+  const watchlists = loadWatchlists()
 
   useEffect(() => {
     void api.getSignalDefinitions().then(setSignals).catch(() => setSignals([]))
@@ -102,6 +103,29 @@ export function ScreenerPage() {
           <label>
             Search
             <input value={filters.search ?? ''} onChange={(e) => updateFilter('search', e.target.value)} />
+          </label>
+          <label>
+            Watchlist
+            <select
+              value={filters.watchlist ?? ''}
+              onChange={(e) => {
+                const id = e.target.value || undefined
+                const list = watchlists.find((item) => item.id === id)
+                setFilters((current) => ({
+                  ...current,
+                  watchlist: id,
+                  symbols: list?.symbols.join(',') || undefined,
+                  page: 1,
+                }))
+              }}
+            >
+              <option value="">All names</option>
+              {watchlists.map((list) => (
+                <option key={list.id} value={list.id}>
+                  {list.name} ({list.symbols.length})
+                </option>
+              ))}
+            </select>
           </label>
           <label>
             Country
@@ -250,6 +274,16 @@ function parseOptionalNumber(value: string): number | undefined {
   return Number.isNaN(parsed) ? undefined : parsed
 }
 
+function resolveSymbols(watchlistId: string | null | undefined, symbols: string | null | undefined): string | undefined {
+  if (watchlistId) {
+    const list = loadWatchlists().find((item) => item.id === watchlistId)
+    if (list) {
+      return list.symbols.join(',') || undefined
+    }
+  }
+  return symbols || undefined
+}
+
 function readFilters(params: URLSearchParams): ScreenerFilters {
   return {
     ...defaultFilters,
@@ -259,6 +293,8 @@ function readFilters(params: URLSearchParams): ScreenerFilters {
     signal: params.get('signal') ?? undefined,
     profile: params.get('profile') ?? undefined,
     profileMatchOnly: params.get('profileMatchOnly') !== 'false',
+    watchlist: params.get('watchlist') ?? undefined,
+    symbols: resolveSymbols(params.get('watchlist'), params.get('symbols')),
     bmsbStatus: params.get('bmsbStatus') ?? undefined,
     search: params.get('search') ?? undefined,
     sort: params.get('sort') ?? 'compositeScoreDesc',

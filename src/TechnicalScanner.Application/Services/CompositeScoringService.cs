@@ -18,17 +18,15 @@ public sealed class CompositeScoringService(
     {
         var scanDate = DateTimeOffset.UtcNow;
         var tickers = dbContext.Tickers.Where(t => t.IsActive).ToList();
-        var profiles = dbContext.ScanProfiles.Where(p => p.IsActive).ToList();
-        var recipes = profiles
-            .Select(p => (
-                Code: p.Code,
-                Weights: SafeWeights(p.ScoreWeightsJson)))
-            .Where(p => p.Weights.Count > 0)
+        var recipes = dbContext.ScanProfiles
+            .Where(p => p.IsActive)
+            .AsEnumerable()
+            .Select(p => new ProfileScoreRecipe(p.Code, p.RuleJson, SafeWeights(p.ScoreWeightsJson)))
             .ToList();
 
         if (recipes.Count == 0)
         {
-            recipes.Add(("DEEP_PULLBACK", LegacyDeepPullbackWeights()));
+            recipes.Add(new ProfileScoreRecipe("DEEP_PULLBACK", """{"all":[]}""", LegacyDeepPullbackWeights()));
         }
 
         if (tickers.Count == 0)
@@ -37,10 +35,12 @@ public sealed class CompositeScoringService(
         }
 
         var codes = recipes
-            .SelectMany(recipe => recipe.Weights.Select(weight => weight.IndicatorCode))
+            .SelectMany(recipe => recipe.Weights.Select(weight => weight.IndicatorCode)
+                .Concat(SignalRuleEvaluator.CollectIndicatorCodes(recipe.RuleJson)))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
         var needsPrevious = recipes.Any(recipe =>
+            SignalRuleEvaluator.RequiresPrevious(recipe.RuleJson) ||
             recipe.Weights.Any(weight => SignalRuleEvaluator.IsTemporalOperator(weight.Operator)));
         var tickerIds = tickers.Select(t => t.Id).ToList();
         var pair = needsPrevious
@@ -54,15 +54,24 @@ public sealed class CompositeScoringService(
             var current = LatestIndicatorLookup.ToEvaluatorMap(pair.Current.GetValueOrDefault(ticker.Id));
             var previous = LatestIndicatorLookup.ToEvaluatorMap(pair.Previous.GetValueOrDefault(ticker.Id));
 
-            foreach (var (code, weights) in recipes)
+            foreach (var recipe in recipes)
             {
-                var (score, components) = ProfileScoring.Score(weights, current, ruleEvaluator, previous);
+                var (score, components) = recipe.Weights.Count > 0
+                    ? ProfileScoring.Score(recipe.Weights, current, ruleEvaluator, previous)
+                    : (0m, new Dictionary<string, decimal>());
+                if (recipe.Weights.Count == 0)
+                {
+                    var match = EvaluateRule(recipe.RuleJson, current, previous);
+                    score = match ? 1m : 0m;
+                    components["ruleMatch"] = score;
+                }
+
                 dbContext.Add(new ScanScore
                 {
                     ScanRunId = scanRunId,
                     ScanDateUtc = scanDate,
                     TickerId = ticker.Id,
-                    ScoreCode = code,
+                    ScoreCode = recipe.Code,
                     Score = score,
                     ComponentsJson = JsonSerializer.Serialize(components)
                 });
@@ -73,6 +82,21 @@ public sealed class CompositeScoringService(
         await dbContext.SaveChangesAsync(cancellationToken);
         logger.LogInformation("Calculated {Count} composite scores.", count);
         return count;
+    }
+
+    private bool EvaluateRule(
+        string ruleJson,
+        Dictionary<string, Dictionary<string, JsonElement>> current,
+        Dictionary<string, Dictionary<string, JsonElement>> previous)
+    {
+        try
+        {
+            return ruleEvaluator.Evaluate(ruleJson, current, previous);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or NotSupportedException or JsonException)
+        {
+            return false;
+        }
     }
 
     private static List<ScoreWeightSpec> SafeWeights(string json)
@@ -113,4 +137,9 @@ public sealed class CompositeScoringService(
             Value = JsonSerializer.SerializeToElement(value),
             Weight = weight
         };
+
+    private sealed record ProfileScoreRecipe(
+        string Code,
+        string RuleJson,
+        List<ScoreWeightSpec> Weights);
 }

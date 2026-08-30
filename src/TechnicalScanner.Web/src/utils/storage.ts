@@ -31,6 +31,32 @@ export function deleteWatchlist(id: string): void {
   writeJson(WATCHLISTS_KEY, loadWatchlists().filter((item) => item.id !== id))
 }
 
+export function isSymbolOnWatchlist(list: Watchlist, symbol: string): boolean {
+  const normalized = symbol.trim().toUpperCase()
+  return list.symbols.some((item) => item.toUpperCase() === normalized)
+}
+
+export function toggleSymbolOnWatchlist(id: string, symbol: string): Watchlist | null {
+  const list = loadWatchlists().find((item) => item.id === id)
+  if (!list) {
+    return null
+  }
+
+  const normalized = symbol.trim().toUpperCase()
+  if (!normalized) {
+    return list
+  }
+
+  const next: Watchlist = {
+    ...list,
+    symbols: isSymbolOnWatchlist(list, normalized)
+      ? list.symbols.filter((item) => item.toUpperCase() !== normalized)
+      : [...list.symbols, normalized],
+  }
+  saveWatchlist(next)
+  return next
+}
+
 function readJson<T>(key: string, fallback: T): T {
   try {
     const raw = localStorage.getItem(key)

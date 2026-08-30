@@ -76,21 +76,24 @@ public static class AlertTransitionDetector
         IReadOnlyList<ScoreSnapshot> previous,
         AlertsOptions options)
     {
-        var previousBySymbol = previous.ToDictionary(x => x.TickerSymbol, StringComparer.OrdinalIgnoreCase);
         var transitions = new List<AlertTransition>();
+
+        var previousByKey = previous.ToDictionary(
+            x => SnapshotKey(x.TickerSymbol, x.ScoreCode),
+            StringComparer.OrdinalIgnoreCase);
 
         foreach (var currentScore in current.Where(x =>
                      x.ScoreCode.Equals(options.CompositeScoreCode, StringComparison.OrdinalIgnoreCase)))
         {
-            previousBySymbol.TryGetValue(currentScore.TickerSymbol, out var prior);
+            previousByKey.TryGetValue(SnapshotKey(currentScore.TickerSymbol, currentScore.ScoreCode), out var prior);
             var priorScore = prior?.Score ?? 0m;
             if (priorScore < options.CompositeScoreThreshold && currentScore.Score >= options.CompositeScoreThreshold)
             {
                 transitions.Add(new AlertTransition(
                     "ScoreThresholdCrossed",
                     "Ticker",
-                    currentScore.TickerSymbol,
-                    $"{currentScore.TickerSymbol} composite score crossed {options.CompositeScoreThreshold}",
+                    SnapshotKey(currentScore.TickerSymbol, currentScore.ScoreCode),
+                    $"{currentScore.TickerSymbol} {currentScore.ScoreCode} crossed {options.CompositeScoreThreshold}",
                     $"{currentScore.TickerSymbol} {currentScore.ScoreCode} score rose to {currentScore.Score:0.##} (threshold {options.CompositeScoreThreshold:0.##}).",
                     JsonSerializer.Serialize(new
                     {
@@ -104,6 +107,74 @@ public static class AlertTransitionDetector
 
         return transitions;
     }
+
+    public static IReadOnlyList<AlertTransition> DetectProfileTransitions(
+        IReadOnlyList<ScoreSnapshot> current,
+        IReadOnlyList<ScoreSnapshot> previous,
+        AlertsOptions options)
+    {
+        if (!options.NotifyOnProfileEntered && !options.NotifyOnProfileExited)
+        {
+            return [];
+        }
+
+        var allowedCodes = options.ProfileCodes.Count == 0
+            ? null
+            : options.ProfileCodes.ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var previousByKey = previous.ToDictionary(
+            x => SnapshotKey(x.TickerSymbol, x.ScoreCode),
+            StringComparer.OrdinalIgnoreCase);
+        var transitions = new List<AlertTransition>();
+
+        foreach (var currentScore in current)
+        {
+            if (allowedCodes is not null && !allowedCodes.Contains(currentScore.ScoreCode))
+            {
+                continue;
+            }
+
+            previousByKey.TryGetValue(SnapshotKey(currentScore.TickerSymbol, currentScore.ScoreCode), out var prior);
+            var wasIn = (prior?.Score ?? 0m) > 0m;
+            var isIn = currentScore.Score > 0m;
+
+            if (options.NotifyOnProfileEntered && !wasIn && isIn)
+            {
+                transitions.Add(new AlertTransition(
+                    "ProfileEntered",
+                    "Profile",
+                    SnapshotKey(currentScore.TickerSymbol, currentScore.ScoreCode),
+                    $"{currentScore.TickerSymbol} entered {currentScore.ScoreCode}",
+                    $"{currentScore.TickerSymbol} now matches cheapness profile {currentScore.ScoreCode} (score {currentScore.Score:0.##}).",
+                    JsonSerializer.Serialize(new
+                    {
+                        currentScore.TickerSymbol,
+                        ProfileCode = currentScore.ScoreCode,
+                        currentScore.Score
+                    })));
+            }
+            else if (options.NotifyOnProfileExited && wasIn && !isIn)
+            {
+                transitions.Add(new AlertTransition(
+                    "ProfileExited",
+                    "Profile",
+                    SnapshotKey(currentScore.TickerSymbol, currentScore.ScoreCode),
+                    $"{currentScore.TickerSymbol} left {currentScore.ScoreCode}",
+                    $"{currentScore.TickerSymbol} no longer matches cheapness profile {currentScore.ScoreCode}.",
+                    JsonSerializer.Serialize(new
+                    {
+                        currentScore.TickerSymbol,
+                        ProfileCode = currentScore.ScoreCode,
+                        currentScore.Score
+                    })));
+            }
+        }
+
+        return transitions;
+    }
+
+    private static string SnapshotKey(string tickerSymbol, string scoreCode)
+        => $"{tickerSymbol}:{scoreCode}";
 
     public static IReadOnlyList<AlertTransition> DetectBreadthTransitions(
         IReadOnlyList<BreadthSnapshotView> current,

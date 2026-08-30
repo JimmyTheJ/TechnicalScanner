@@ -125,6 +125,7 @@ public sealed class AlertService(
         [
             ..AlertTransitionDetector.DetectSignalTransitions(currentSignals, previousSignals, alertOptions),
             ..AlertTransitionDetector.DetectScoreTransitions(currentScores, previousScores, alertOptions),
+            ..AlertTransitionDetector.DetectProfileTransitions(currentScores, previousScores, alertOptions),
             ..AlertTransitionDetector.DetectBreadthTransitions(currentBreadth, previousBreadth, alertOptions)
         ];
     }

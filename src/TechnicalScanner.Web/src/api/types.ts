@@ -73,6 +73,8 @@ export interface ScreenerFilters {
   maxBollingerPercentB?: number
   profile?: string
   profileMatchOnly?: boolean
+  symbols?: string
+  watchlist?: string
   search?: string
   sort?: string
   page?: number

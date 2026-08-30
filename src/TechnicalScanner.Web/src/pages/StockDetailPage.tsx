@@ -22,6 +22,7 @@ import type {
 } from '../api/types'
 import { ErrorState, LoadingState } from '../components/StateBlocks'
 import { formatDate, formatDay, formatMarketCap, formatNumber, formatPercent } from '../utils/format'
+import { isSymbolOnWatchlist, loadWatchlists, toggleSymbolOnWatchlist } from '../utils/storage'
 
 export function StockDetailPage() {
   const { symbol = '' } = useParams()
@@ -38,6 +39,7 @@ export function StockDetailPage() {
   const [loadingProfile, setLoadingProfile] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [watchlists, setWatchlists] = useState(loadWatchlists)
 
   useEffect(() => {
     setProfileCode('')
@@ -163,11 +165,21 @@ export function StockDetailPage() {
   )
 
   if (loading) {
-    return <LoadingState message={`Loading ${symbol}…`} />
+    return (
+      <div className="page-stack">
+        <WatchlistBar symbol={symbol} watchlists={watchlists} onChange={() => setWatchlists(loadWatchlists())} />
+        <LoadingState message={`Loading ${symbol}…`} />
+      </div>
+    )
   }
 
   if (error || !ticker) {
-    return <ErrorState message={error ?? `Ticker ${symbol} not found`} />
+    return (
+      <div className="page-stack">
+        <WatchlistBar symbol={symbol} watchlists={watchlists} onChange={() => setWatchlists(loadWatchlists())} />
+        <ErrorState message={error ?? `Ticker ${symbol} not found`} />
+      </div>
+    )
   }
 
   const rsiDaily = metric(indicators, 'RSI_14_D', 'rsi')
@@ -188,6 +200,7 @@ export function StockDetailPage() {
           <p className="muted">
             {ticker.sector ?? 'Unknown sector'} · {ticker.industry ?? 'Unknown industry'}
           </p>
+          <WatchlistBar symbol={ticker.symbol} watchlists={watchlists} onChange={() => setWatchlists(loadWatchlists())} />
         </div>
         <div className="detail-stats">
           <div>
@@ -427,4 +440,41 @@ function summarizeValues(indicator: IndicatorLatest): string {
     .slice(0, 4)
     .map(([key, value]) => `${key} ${String(value)}`)
   return entries.join(' · ') || 'No extra fields'
+}
+
+function WatchlistBar({
+  symbol,
+  watchlists,
+  onChange,
+}: {
+  symbol: string
+  watchlists: ReturnType<typeof loadWatchlists>
+  onChange: () => void
+}) {
+  return (
+    <div className="chip-row">
+      {watchlists.length === 0 ? (
+        <Link to="/watchlists" className="chip">
+          Create a watchlist
+        </Link>
+      ) : (
+        watchlists.map((list) => {
+          const onList = isSymbolOnWatchlist(list, symbol)
+          return (
+            <button
+              key={list.id}
+              type="button"
+              className={onList ? 'chip match' : 'chip nomatch'}
+              onClick={() => {
+                toggleSymbolOnWatchlist(list.id, symbol)
+                onChange()
+              }}
+            >
+              {onList ? `In ${list.name}` : `Add to ${list.name}`}
+            </button>
+          )
+        })
+      )}
+    </div>
+  )
 }
