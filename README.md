@@ -191,7 +191,7 @@ That maps onto the same shape as `appsettings.json`:
 }
 ```
 
-Compose passes `.env` into the API and worker containers. Inside those containers the connection string `Host` is `postgres` (a DNS-safe alias; .NET cannot resolve names with underscores such as `technical_scanner_postgres`). Host-run apps keep `Host=localhost`.
+Compose passes `.env` into the API and worker containers. Inside those containers the connection string `Host` is `technical-scanner-postgres` (a unique DNS-safe alias on this project's default network). `.NET` cannot resolve names with underscores such as `technical_scanner_postgres`. Host-run apps keep `Host=localhost`. Postgres is not attached to the reverse-proxy network.
 
 `appsettings.Local.json` is still loaded if present, then `.env`, then process environment variables.
 
