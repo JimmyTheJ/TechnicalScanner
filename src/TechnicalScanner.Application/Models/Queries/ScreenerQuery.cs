@@ -69,6 +69,14 @@ public sealed class ScreenerRowDto
     public decimal? Sma200WDistancePct { get; init; }
     public decimal? DailyBollingerPercentB { get; init; }
     public decimal? WeeklyBollingerPercentB { get; init; }
+    public decimal? DistanceFromAthPct { get; init; }
+    public int CheapHits { get; init; }
+    public int CheapValid { get; init; }
+    public decimal CheapPct { get; init; }
+    public int ExtendedHits { get; init; }
+    public int ExtendedValid { get; init; }
+    public decimal ExtendedPct { get; init; }
+    public string Bias { get; init; } = "Neutral";
     public decimal? CompositeScore { get; init; }
     public bool? ProfileMatch { get; init; }
     public string? ProfileCode { get; init; }

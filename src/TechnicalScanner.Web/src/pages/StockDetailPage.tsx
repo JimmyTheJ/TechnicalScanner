@@ -12,6 +12,7 @@ import {
 } from 'recharts'
 import { api } from '../api/client'
 import type {
+  ConfluenceSnapshot,
   IndicatorLatest,
   PriceCandlePoint,
   ProfileBacktestResult,
@@ -31,6 +32,7 @@ export function StockDetailPage() {
   const [candles, setCandles] = useState<PriceCandlePoint[]>([])
   const [timeframe, setTimeframe] = useState('D')
   const [signals, setSignals] = useState<TickerSignalHistory[]>([])
+  const [confluence, setConfluence] = useState<ConfluenceSnapshot | null>(null)
   const [profiles, setProfiles] = useState<ScanProfile[]>([])
   const [profileCode, setProfileCode] = useState('')
   const [snapshot, setSnapshot] = useState<ProfileTickerSnapshot | null>(null)
@@ -47,6 +49,7 @@ export function StockDetailPage() {
     setBacktest(null)
     setCandles([])
     setSignals([])
+    setConfluence(null)
   }, [symbol])
 
   useEffect(() => {
@@ -59,11 +62,12 @@ export function StockDetailPage() {
     async function load() {
       try {
         setLoading(true)
-        const [tickerResult, indicatorResult, signalResult, profileResult] = await Promise.all([
+        const [tickerResult, indicatorResult, signalResult, profileResult, confluenceResult] = await Promise.all([
           api.getTicker(symbol),
           api.getIndicatorLatest(symbol),
           api.getTickerSignals(symbol),
           api.getProfiles().catch(() => [] as ScanProfile[]),
+          api.getTickerConfluence(symbol).catch(() => null),
         ])
 
         if (!cancelled) {
@@ -71,6 +75,7 @@ export function StockDetailPage() {
           setIndicators(indicatorResult)
           setSignals(signalResult)
           setProfiles(profileResult)
+          setConfluence(confluenceResult)
           setProfileCode((current) => current || profileResult[0]?.code || '')
           setError(null)
         }
@@ -189,6 +194,7 @@ export function StockDetailPage() {
   const sma50w = metric(indicators, 'SMA_50_W', 'distanceFromSmaPct')
   const roc21 = metric(indicators, 'ROC_21_D', 'rocPct')
   const vsSpy = metric(indicators, 'RS_SPY_63_D', 'relativeStrengthPct')
+  const athDrawdown = metric(indicators, 'DRAWDOWN_ATH_D', 'distanceFromAthPct')
   const bollinger = text(indicators, 'BB_20_2_D', 'status')
   const bmsb = text(indicators, 'BMSB_W', 'status')
 
@@ -250,6 +256,10 @@ export function StockDetailPage() {
           <strong>{formatPercent(vsSpy)}</strong>
         </article>
         <article className="metric-chip">
+          <span>vs ATH</span>
+          <strong>{formatPercent(athDrawdown)}</strong>
+        </article>
+        <article className="metric-chip">
           <span>Bollinger</span>
           <strong>{bollinger ?? '—'}</strong>
         </article>
@@ -257,6 +267,25 @@ export function StockDetailPage() {
           <span>BMSB</span>
           <strong>{bmsb ?? '—'}</strong>
         </article>
+      </section>
+
+      <section className="panel-card">
+        <div className="panel-header">
+          <h3>Timeframe confluence</h3>
+          {confluence ? (
+            <span className={confluence.bias === 'Cheap' ? 'chip match' : confluence.bias === 'Extended' ? 'chip nomatch' : 'chip'}>
+              {confluence.bias} · cheap {confluence.cheapHits}/{confluence.cheapValid} · extended {confluence.extendedHits}/{confluence.extendedValid}
+            </span>
+          ) : null}
+        </div>
+        {confluence ? (
+          <div className="heatmap-metrics">
+            <ConfluenceSideList title="Cheap agreement" components={confluence.components.filter((item) => item.side === 'Cheap')} />
+            <ConfluenceSideList title="Extended agreement" components={confluence.components.filter((item) => item.side === 'Extended')} />
+          </div>
+        ) : (
+          <p className="muted">No confluence snapshot yet. Import prices and calculate indicators, then reopen this page.</p>
+        )}
       </section>
 
       <section className="panel-card">
@@ -442,6 +471,32 @@ function metric(indicators: IndicatorLatest[], code: string, field: string): num
 function text(indicators: IndicatorLatest[], code: string, field: string): string | undefined {
   const value = indicators.find((item) => item.code === code)?.values?.[field]
   return typeof value === 'string' ? value : undefined
+}
+
+function ConfluenceSideList({
+  title,
+  components,
+}: {
+  title: string
+  components: { label: string; timeframe: string; available: boolean; matched: boolean }[]
+}) {
+  return (
+    <div>
+      <h4>{title}</h4>
+      <ul className="simple-list">
+        {components.map((component) => (
+          <li key={component.label}>
+            <span>
+              <span className="chip">{component.timeframe}</span> {component.label}
+            </span>
+            <strong>
+              {!component.available ? 'Missing' : component.matched ? 'Hit' : 'No'}
+            </strong>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
 }
 
 function summarizeValues(indicator: IndicatorLatest): string {

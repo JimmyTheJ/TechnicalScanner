@@ -90,3 +90,28 @@ public sealed class TickerSignalHistoryDto
     public required string SignalName { get; init; }
     public bool IsMatch { get; init; }
 }
+
+public sealed class ConfluenceSnapshotDto
+{
+    public required string Symbol { get; init; }
+    public int CheapHits { get; init; }
+    public int CheapValid { get; init; }
+    public decimal CheapPct { get; init; }
+    public int ExtendedHits { get; init; }
+    public int ExtendedValid { get; init; }
+    public decimal ExtendedPct { get; init; }
+    public required string Bias { get; init; }
+    public IReadOnlyList<ConfluenceComponentDto> Components { get; init; } = [];
+}
+
+public sealed class ConfluenceComponentDto
+{
+    public required string Label { get; init; }
+    public required string Timeframe { get; init; }
+    public required string IndicatorCode { get; init; }
+    public required string Field { get; init; }
+    public required string Operator { get; init; }
+    public required string Side { get; init; }
+    public bool Available { get; init; }
+    public bool Matched { get; init; }
+}

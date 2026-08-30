@@ -161,6 +161,18 @@ public static class IndicatorTypeCatalog
                 new("benchmarkReturnPct", "number", "Benchmark percent return over the window"),
                 new("benchmarkSymbol", "string", "Benchmark ticker used"),
                 new("close", "number", "Close used in the calculation")
+            ]),
+        new(
+            "DRAWDOWN",
+            "Drawdown from all-time high",
+            "Percent distance from the highest high in stored history for this timeframe.",
+            "DRAWDOWN_ATH_{timeframe}",
+            [],
+            [
+                new("distanceFromAthPct", "number", "Percent distance from the all-time high (negative when below)"),
+                new("drawdownPct", "number", "Percent decline from the all-time high to close"),
+                new("ath", "number", "Highest high seen so far"),
+                new("close", "number", "Close used in the calculation")
             ])
     ];
 
@@ -184,6 +196,7 @@ public static class IndicatorTypeCatalog
             "RELATIVE_STRENGTH" => $"RS_{IndicatorMath.SanitizeCodeToken(ReadString(parameters, "benchmarkSymbol"))}_{period}_{tf}",
             "BOLLINGER_BANDS" => $"BB_{period}_{ReadNumber(parameters, "stdDevMultiplier")}_{tf}",
             "BMSB" => $"BMSB_{tf}",
+            "DRAWDOWN" => $"DRAWDOWN_ATH_{tf}",
             _ => $"{type}_{period}_{tf}"
         };
     }
@@ -210,6 +223,7 @@ public static class IndicatorTypeCatalog
             "RELATIVE_STRENGTH" => $"{period} {tfLabel} vs {ReadString(parameters, "benchmarkSymbol")}",
             "BOLLINGER_BANDS" => $"{tfLabel} Bollinger Bands {period}/{ReadNumber(parameters, "stdDevMultiplier")}",
             "BMSB" => "Bull Market Support Band",
+            "DRAWDOWN" => $"{tfLabel} drawdown from ATH",
             _ => $"{indicatorType} {period} {tfLabel}"
         };
     }

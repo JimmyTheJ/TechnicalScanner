@@ -15,5 +15,7 @@ public class IndicatorTypeCatalogTests
         Assert.Equal("VOL_SMA_20_D", IndicatorTypeCatalog.SuggestCode("VOLUME", "D", volParams));
         Assert.Contains(IndicatorTypeCatalog.Entries, e => e.IndicatorType == "ATR");
         Assert.Contains(IndicatorTypeCatalog.Entries, e => e.IndicatorType == "PRICE_RANGE");
+        Assert.Contains(IndicatorTypeCatalog.Entries, e => e.IndicatorType == "DRAWDOWN");
+        Assert.Equal("DRAWDOWN_ATH_D", IndicatorTypeCatalog.SuggestCode("DRAWDOWN", "d", JsonSerializer.SerializeToElement(new { })));
     }
 }

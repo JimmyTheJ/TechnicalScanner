@@ -8,7 +8,8 @@ namespace TechnicalScanner.Api.Controllers;
 [Route("api/tickers")]
 public sealed class TickersController(
     TickerQueryService tickerQueryService,
-    SignalQueryService signalQueryService) : ControllerBase
+    SignalQueryService signalQueryService,
+    ConfluenceQueryService confluenceQueryService) : ControllerBase
 {
     [HttpGet]
     [ProducesResponseType(typeof(PagedResult<TickerListItemDto>), StatusCodes.Status200OK)]
@@ -51,4 +52,13 @@ public sealed class TickersController(
     [ProducesResponseType(typeof(IReadOnlyList<TickerSignalHistoryDto>), StatusCodes.Status200OK)]
     public IActionResult GetSignals(string symbol, [FromQuery] int limit = 40)
         => Ok(signalQueryService.GetHistoryForTicker(symbol, limit));
+
+    [HttpGet("{symbol}/confluence")]
+    [ProducesResponseType(typeof(ConfluenceSnapshotDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public IActionResult GetConfluence(string symbol)
+    {
+        var snapshot = confluenceQueryService.GetForSymbol(symbol);
+        return snapshot is null ? NotFound() : Ok(snapshot);
+    }
 }

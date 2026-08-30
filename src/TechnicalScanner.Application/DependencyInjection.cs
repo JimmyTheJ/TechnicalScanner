@@ -21,6 +21,7 @@ public static class DependencyInjection
         services.AddSingleton<IIndicatorCalculator, AtrIndicatorCalculator>();
         services.AddSingleton<IIndicatorCalculator, PriceRangeIndicatorCalculator>();
         services.AddSingleton<IIndicatorCalculator, RocIndicatorCalculator>();
+        services.AddSingleton<IIndicatorCalculator, DrawdownIndicatorCalculator>();
         services.AddScoped<IBenchmarkPriceLookup, BenchmarkPriceLookup>();
         services.AddScoped<IIndicatorCalculator, RelativeStrengthIndicatorCalculator>();
         services.AddScoped<IndicatorCalculatorRegistry>();
@@ -37,6 +38,7 @@ public static class DependencyInjection
         services.AddScoped<AlertService>();
         services.AddScoped<NightlyScanService>();
         services.AddScoped<TickerQueryService>();
+        services.AddScoped<ConfluenceQueryService>();
         services.AddScoped<IndicatorQueryService>();
         services.AddScoped<SignalQueryService>();
         services.AddScoped<ScreenerQueryService>();

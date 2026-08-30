@@ -481,10 +481,12 @@ export function ProfilesPage() {
               <option value="M">Monthly</option>
             </select>
           </label>
-          <label>
-            Period
-            <input type="number" value={newPeriod} onChange={(e) => setNewPeriod(Number(e.target.value))} />
-          </label>
+          {selectedType?.parameters.some((item) => item.name === 'period') ? (
+            <label>
+              Period
+              <input type="number" value={newPeriod} onChange={(e) => setNewPeriod(Number(e.target.value))} />
+            </label>
+          ) : null}
           {selectedType?.parameters.some((item) => item.name === 'stdDevMultiplier') ? (
             <label>
               Std dev
@@ -941,6 +943,8 @@ function suggestCode(type: string, timeframe: string, parameters: Record<string,
       return `BB_${period}_${parameters.stdDevMultiplier ?? 2}_${tf}`
     case 'BMSB':
       return `BMSB_${tf}`
+    case 'DRAWDOWN':
+      return `DRAWDOWN_ATH_${tf}`
     default:
       return `${type}_${period}_${tf}`
   }
@@ -952,6 +956,9 @@ function suggestName(type: string, timeframe: string, parameters: Record<string,
   }
   if (type === 'ROC') {
     return `${parameters.period ?? ''} ${timeframe} ROC`.trim()
+  }
+  if (type === 'DRAWDOWN') {
+    return `${timeframe} drawdown from ATH`
   }
   return `${type} ${parameters.period ?? ''} ${timeframe}`.trim()
 }

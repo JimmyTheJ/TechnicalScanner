@@ -1,5 +1,6 @@
 import type {
   BreadthSnapshot,
+  ConfluenceSnapshot,
   IndicatorHistoryPoint,
   IndicatorLatest,
   IndicatorDefinition,
@@ -136,6 +137,9 @@ export const api = {
     getJson<TickerSignalHistory[]>(
       `/api/tickers/${encodeURIComponent(symbol)}/signals${buildQuery({ limit })}`,
     ),
+
+  getTickerConfluence: (symbol: string) =>
+    getJson<ConfluenceSnapshot>(`/api/tickers/${encodeURIComponent(symbol)}/confluence`),
 
   getIndicatorLatest: (ticker: string) =>
     getJson<IndicatorLatest[]>(`/api/indicators/latest${buildQuery({ ticker })}`),

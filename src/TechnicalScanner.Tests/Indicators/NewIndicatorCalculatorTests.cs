@@ -84,6 +84,30 @@ public class NewIndicatorCalculatorTests
     }
 
     [Fact]
+    public async Task DrawdownCalculator_TracksAllTimeHighAndPercentDistance()
+    {
+        var candles = new[]
+        {
+            Candle(0, 90m, high: 100m),
+            Candle(1, 80m, high: 85m),
+            Candle(2, 120m, high: 120m)
+        };
+        var calculator = new DrawdownIndicatorCalculator();
+        var results = await calculator.CalculateAsync(
+            Ticker(),
+            Definition("DRAWDOWN", "D", "{}"),
+            candles,
+            CancellationToken.None);
+
+        Assert.Equal(3, results.Count);
+        Assert.Equal(-20m, results[1].PrimaryValue);
+        Assert.Equal(100m, ReadDecimal(results[1].Values, "ath"));
+        Assert.Equal(20m, ReadDecimal(results[1].Values, "drawdownPct"));
+        Assert.Equal(0m, results[2].PrimaryValue);
+        Assert.Equal(120m, ReadDecimal(results[2].Values, "ath"));
+    }
+
+    [Fact]
     public async Task RelativeStrengthCalculator_SubtractsBenchmarkReturn()
     {
         var start = new DateOnly(2020, 1, 2);

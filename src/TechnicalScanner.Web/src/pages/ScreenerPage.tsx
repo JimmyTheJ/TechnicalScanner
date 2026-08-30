@@ -200,6 +200,9 @@ export function ScreenerPage() {
             <select value={filters.sort ?? 'compositeScoreDesc'} onChange={(e) => updateFilter('sort', e.target.value)}>
               <option value="compositeScoreDesc">Composite Score Desc</option>
               <option value="compositeScoreAsc">Composite Score Asc</option>
+              <option value="cheapConfluenceDesc">Cheap Confluence Desc</option>
+              <option value="extendedConfluenceDesc">Extended Confluence Desc</option>
+              <option value="athDrawdownAsc">Furthest Below ATH</option>
               <option value="dailyRsiAsc">Daily RSI Asc</option>
               <option value="dailyRsiDesc">Daily RSI Desc</option>
               <option value="symbolAsc">Symbol Asc</option>

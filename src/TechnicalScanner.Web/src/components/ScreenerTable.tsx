@@ -29,6 +29,9 @@ export function ScreenerTable({ rows }: ScreenerTableProps) {
               </>
             )}
             <th>Score</th>
+            <th>Cheap</th>
+            <th>Ext</th>
+            <th>ATH %</th>
             <th>Match</th>
             <th>Signals</th>
           </tr>
@@ -62,6 +65,9 @@ export function ScreenerTable({ rows }: ScreenerTableProps) {
                   </>
                 )}
               <td>{formatNumber(row.compositeScore, 1)}</td>
+              <td>{formatConfluence(row.cheapHits, row.cheapValid, row.cheapPct)}</td>
+              <td>{formatConfluence(row.extendedHits, row.extendedValid, row.extendedPct)}</td>
+              <td>{formatPercent(row.distanceFromAthPct)}</td>
               <td>{row.profileMatch == null ? '—' : row.profileMatch ? 'Yes' : 'No'}</td>
               <td className="signals-cell">{row.matchedSignals.join(', ') || '—'}</td>
             </tr>
@@ -70,4 +76,11 @@ export function ScreenerTable({ rows }: ScreenerTableProps) {
       </table>
     </div>
   )
+}
+
+function formatConfluence(hits: number | undefined, valid: number | undefined, pct: number | undefined): string {
+  if (!valid) {
+    return '—'
+  }
+  return `${hits ?? 0}/${valid} (${formatNumber(pct, 0)}%)`
 }

@@ -110,6 +110,7 @@ internal static class SeedData
         EnsureIndicator(db, "RS_SPY_63_D", "63 Day vs SPY", "RELATIVE_STRENGTH", "D", new { period = 63, benchmarkSymbol = "SPY" });
         EnsureIndicator(db, "RS_QQQ_63_D", "63 Day vs QQQ", "RELATIVE_STRENGTH", "D", new { period = 63, benchmarkSymbol = "QQQ" });
         EnsureIndicator(db, "RS_XIU_63_D", "63 Day vs XIU.TO", "RELATIVE_STRENGTH", "D", new { period = 63, benchmarkSymbol = "XIU.TO" });
+        EnsureIndicator(db, "DRAWDOWN_ATH_D", "Drawdown from all-time high", "DRAWDOWN", "D", new { });
 
         if (!await db.SignalDefinitions.AnyAsync(cancellationToken))
         {

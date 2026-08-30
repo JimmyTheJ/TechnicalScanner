@@ -1,5 +1,6 @@
 using System.Text.Json;
 using TechnicalScanner.Application.Abstractions;
+using TechnicalScanner.Application.Confluence;
 using TechnicalScanner.Application.Models.Profiles;
 using TechnicalScanner.Application.Models.Queries;
 using TechnicalScanner.Application.Profiles;
@@ -86,6 +87,7 @@ public sealed class ScreenerQueryService(
             }
 
             decimal? persistedScore = scores.TryGetValue(ticker.Id, out var stored) ? stored.Score : null;
+            var confluence = ConfluenceScoring.Evaluate(evaluatorMap, ruleEvaluator);
 
             var row = BuildRow(
                 ticker,
@@ -95,7 +97,8 @@ public sealed class ScreenerQueryService(
                 matchedSignals.GetValueOrDefault(ticker.Id),
                 liveScore ?? persistedScore,
                 profileMatch,
-                profile?.Code);
+                profile?.Code,
+                confluence);
             if (!PassesFilters(row, query, matchedSignals.GetValueOrDefault(ticker.Id)))
             {
                 continue;
@@ -237,6 +240,11 @@ public sealed class ScreenerQueryService(
         IReadOnlyList<ScoreWeightSpec> weights)
     {
         var codes = new HashSet<string>(DisplayIndicatorCodes, StringComparer.OrdinalIgnoreCase);
+        foreach (var code in ConfluenceCatalog.IndicatorCodes)
+        {
+            codes.Add(code);
+        }
+
         foreach (var spec in profileIndicators)
         {
             codes.Add(spec.Code);
@@ -310,7 +318,8 @@ public sealed class ScreenerQueryService(
         List<string>? matchedSignals,
         decimal? score,
         bool? profileMatch,
-        string? profileCode)
+        string? profileCode,
+        ConfluenceTally confluence)
     {
         var metrics = profileIndicators
             .Select(spec => snapshots.TryGetValue(spec.Code, out var snapshot)
@@ -347,6 +356,14 @@ public sealed class ScreenerQueryService(
             Sma200WDistancePct = ReadDecimal(indicators, "SMA_200_W", "distanceFromSmaPct"),
             DailyBollingerPercentB = ReadDecimal(indicators, "BB_20_2_D", "percentB"),
             WeeklyBollingerPercentB = ReadDecimal(indicators, "BB_20_2_W", "percentB"),
+            DistanceFromAthPct = ReadDecimal(indicators, "DRAWDOWN_ATH_D", "distanceFromAthPct"),
+            CheapHits = confluence.CheapHits,
+            CheapValid = confluence.CheapValid,
+            CheapPct = confluence.CheapPct,
+            ExtendedHits = confluence.ExtendedHits,
+            ExtendedValid = confluence.ExtendedValid,
+            ExtendedPct = confluence.ExtendedPct,
+            Bias = confluence.Bias,
             CompositeScore = score,
             ProfileMatch = profileMatch,
             ProfileCode = profileCode,
@@ -427,6 +444,9 @@ public sealed class ScreenerQueryService(
             "dailyrsiasc" => rows.OrderBy(r => r.DailyRsi).ToList(),
             "dailyrsidesc" => rows.OrderByDescending(r => r.DailyRsi).ToList(),
             "compositescoreasc" => rows.OrderBy(r => r.CompositeScore).ToList(),
+            "cheapconfluencedesc" => rows.OrderByDescending(r => r.CheapPct).ThenByDescending(r => r.CheapHits).ThenBy(r => r.Symbol).ToList(),
+            "extendedconfluencedesc" => rows.OrderByDescending(r => r.ExtendedPct).ThenByDescending(r => r.ExtendedHits).ThenBy(r => r.Symbol).ToList(),
+            "athdrawdownasc" => rows.OrderBy(r => r.DistanceFromAthPct ?? decimal.MaxValue).ThenBy(r => r.Symbol).ToList(),
             _ => rows.OrderByDescending(r => r.CompositeScore).ThenBy(r => r.Symbol).ToList()
         };
 

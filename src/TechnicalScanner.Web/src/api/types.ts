@@ -41,6 +41,14 @@ export interface ScreenerRow {
   sma200WDistancePct?: number
   dailyBollingerPercentB?: number
   weeklyBollingerPercentB?: number
+  distanceFromAthPct?: number
+  cheapHits: number
+  cheapValid: number
+  cheapPct: number
+  extendedHits: number
+  extendedValid: number
+  extendedPct: number
+  bias: string
   compositeScore?: number
   profileMatch?: boolean | null
   profileCode?: string
@@ -309,6 +317,29 @@ export interface TickerSignalHistory {
   signalCode: string
   signalName: string
   isMatch: boolean
+}
+
+export interface ConfluenceComponent {
+  label: string
+  timeframe: string
+  indicatorCode: string
+  field: string
+  operator: string
+  side: string
+  available: boolean
+  matched: boolean
+}
+
+export interface ConfluenceSnapshot {
+  symbol: string
+  cheapHits: number
+  cheapValid: number
+  cheapPct: number
+  extendedHits: number
+  extendedValid: number
+  extendedPct: number
+  bias: string
+  components: ConfluenceComponent[]
 }
 
 export interface ProfileScoreComponent {
