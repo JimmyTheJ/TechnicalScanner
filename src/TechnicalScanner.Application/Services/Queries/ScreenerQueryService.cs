@@ -41,7 +41,14 @@ public sealed class ScreenerQueryService(
         }
 
         var neededCodes = RequiredScreenerCodes(profile, profileIndicators, weights);
-        var indicatorLookup = LatestIndicatorLookup.Load(dbContext, tickerIds, neededCodes);
+        var needsPrevious = profile is not null && (
+            SignalRuleEvaluator.RequiresPrevious(profile.RuleJson) ||
+            weights.Any(weight => SignalRuleEvaluator.IsTemporalOperator(weight.Operator)));
+        var pair = needsPrevious
+            ? LatestIndicatorLookup.LoadCurrentAndPrevious(dbContext, tickerIds, neededCodes)
+            : new LatestPair(LatestIndicatorLookup.Load(dbContext, tickerIds, neededCodes), []);
+        var indicatorLookup = pair.Current;
+        var previousLookup = pair.Previous;
         var matchedSignals = BuildMatchedSignals(latestScanDate, tickerIds);
         var scoreCode = profile?.Code ?? "DEEP_PULLBACK";
         var scores = BuildLatestScores(tickerIds, scoreCode);
@@ -57,11 +64,12 @@ public sealed class ScreenerQueryService(
                 x => x.Value.Values,
                 StringComparer.OrdinalIgnoreCase);
             var evaluatorMap = IndicatorValueMaps.ToEvaluatorMap(valuesByCode);
+            var previousMap = ToEvaluatorMap(previousLookup.GetValueOrDefault(ticker.Id));
 
             bool? profileMatch = null;
             if (profile is not null)
             {
-                profileMatch = ruleEvaluator.Evaluate(profile.RuleJson, evaluatorMap);
+                profileMatch = ruleEvaluator.Evaluate(profile.RuleJson, evaluatorMap, previousMap);
                 if (query.ProfileMatchOnly && profileMatch == false)
                 {
                     continue;
@@ -71,7 +79,7 @@ public sealed class ScreenerQueryService(
             decimal? liveScore = null;
             if (weights.Count > 0)
             {
-                liveScore = ProfileScoring.Score(weights, evaluatorMap, ruleEvaluator).Score;
+                liveScore = ProfileScoring.Score(weights, evaluatorMap, ruleEvaluator, previousMap).Score;
             }
 
             decimal? persistedScore = scores.TryGetValue(ticker.Id, out var stored) ? stored.Score : null;
@@ -477,5 +485,22 @@ public sealed class ScreenerQueryService(
         {
             return [];
         }
+    }
+
+    private static Dictionary<string, Dictionary<string, JsonElement>> ToEvaluatorMap(
+        Dictionary<string, LatestIndicatorSnapshot>? snapshots)
+    {
+        var result = new Dictionary<string, Dictionary<string, JsonElement>>(StringComparer.OrdinalIgnoreCase);
+        if (snapshots is null)
+        {
+            return result;
+        }
+
+        foreach (var (code, snapshot) in snapshots)
+        {
+            result[code] = IndicatorValueMaps.ToFields(snapshot.Values);
+        }
+
+        return result;
     }
 }

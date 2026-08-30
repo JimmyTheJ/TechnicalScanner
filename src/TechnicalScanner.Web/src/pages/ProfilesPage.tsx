@@ -20,7 +20,20 @@ interface Condition {
   value: string
 }
 
-const operators = ['=', '!=', '<', '<=', '>', '>=']
+const operators = [
+  '=',
+  '!=',
+  '<',
+  '<=',
+  '>',
+  '>=',
+  'between',
+  'not_between',
+  'crossed_above',
+  'crossed_below',
+  'rising',
+  'falling',
+]
 
 const emptyForm: UpsertScanProfileRequest = {
   code: '',
@@ -200,6 +213,10 @@ export function ProfilesPage() {
         ...form,
         code: form.code.trim().toUpperCase(),
         ruleJson,
+        scoreWeights: form.scoreWeights.map((weight) => ({
+          ...weight,
+          value: coerceWeightValue(weight, fieldsByCode),
+        })),
       }
       const saved = selectedCode
         ? await api.updateProfile(selectedCode, request)
@@ -539,6 +556,8 @@ export function ProfilesPage() {
                 </select>
                 <input
                   value={condition.value}
+                  placeholder={valuePlaceholder(condition.operator)}
+                  disabled={operatorOmitsValue(condition.operator)}
                   onChange={(e) => updateCondition(index, { ...condition, value: e.target.value })}
                 />
                 <button type="button" className="button secondary" onClick={() => setConditions((current) => current.filter((_, i) => i !== index))}>
@@ -603,7 +622,9 @@ export function ProfilesPage() {
               ))}
             </select>
             <input
-              value={String(weight.value ?? '')}
+              value={displayWeightValue(weight)}
+              placeholder={valuePlaceholder(weight.operator)}
+              disabled={operatorOmitsValue(weight.operator)}
               onChange={(e) => updateWeight(index, { ...weight, value: e.target.value })}
             />
             <input
@@ -742,21 +763,102 @@ function toCondition(node: Record<string, unknown>): Condition {
     indicatorCode: String(node.indicatorCode ?? ''),
     field: String(node.field ?? ''),
     operator: String(node.operator ?? '='),
-    value: String(node.value ?? ''),
+    value: formatRuleValue(node.value),
   }
 }
 
-function serializeRule(mode: 'all' | 'any', conditions: Condition[], fieldsByCode: Map<string, { name: string; valueType: string }[]>): string {
+function formatRuleValue(value: unknown): string {
+  if (Array.isArray(value)) {
+    return value.join(',')
+  }
+  if (value && typeof value === 'object' && 'min' in value && 'max' in value) {
+    const range = value as { min: unknown; max: unknown }
+    return `${range.min},${range.max}`
+  }
+  return String(value ?? '')
+}
+
+function serializeRule(
+  mode: 'all' | 'any',
+  conditions: Condition[],
+  fieldsByCode: Map<string, { name: string; valueType: string }[]>,
+): string {
   return JSON.stringify({
     [mode]: conditions
       .filter((item) => item.indicatorCode && item.field)
-      .map((item) => ({
-        indicatorCode: item.indicatorCode,
-        field: item.field,
-        operator: item.operator,
-        value: coerceValue(item.value, fieldsByCode.get(item.indicatorCode)?.find((field) => field.name === item.field)?.valueType),
-      })),
+      .map((item) => {
+        const base = {
+          indicatorCode: item.indicatorCode,
+          field: item.field,
+          operator: item.operator,
+        }
+        if (operatorOmitsValue(item.operator)) {
+          return base
+        }
+        return {
+          ...base,
+          value: coerceRuleValue(
+            item.value,
+            item.operator,
+            fieldsByCode.get(item.indicatorCode)?.find((field) => field.name === item.field)?.valueType,
+          ),
+        }
+      }),
   })
+}
+
+function operatorOmitsValue(operator: string): boolean {
+  return operator === 'rising' || operator === 'falling'
+}
+
+function operatorUsesRange(operator: string): boolean {
+  return operator === 'between' || operator === 'not_between'
+}
+
+function valuePlaceholder(operator: string): string {
+  if (operatorOmitsValue(operator)) {
+    return 'n/a'
+  }
+  if (operatorUsesRange(operator)) {
+    return 'min,max'
+  }
+  return 'value'
+}
+
+function displayWeightValue(weight: ScoreWeightSpec): string {
+  if (operatorOmitsValue(weight.operator)) {
+    return ''
+  }
+  return formatRuleValue(weight.value)
+}
+
+function coerceWeightValue(
+  weight: ScoreWeightSpec,
+  fieldsByCode: Map<string, { name: string; valueType: string }[]>,
+): unknown {
+  if (operatorOmitsValue(weight.operator)) {
+    return 0
+  }
+  return coerceRuleValue(
+    formatRuleValue(weight.value),
+    weight.operator,
+    fieldsByCode.get(weight.indicatorCode)?.find((field) => field.name === weight.field)?.valueType,
+  )
+}
+
+function coerceRuleValue(raw: string, operator: string, valueType?: string): unknown {
+  if (operatorUsesRange(operator)) {
+    return parseRange(raw)
+  }
+  return coerceValue(raw, valueType)
+}
+
+function parseRange(raw: string): [number, number] | string {
+  const parts = raw.split(',').map((part) => part.trim())
+  if (parts.length >= 2 && parts.every((part) => part !== '' && !Number.isNaN(Number(part)))) {
+    return [Number(parts[0]), Number(parts[1])]
+  }
+  return raw
 }
 
 function coerceValue(raw: string, valueType?: string): string | number | boolean {

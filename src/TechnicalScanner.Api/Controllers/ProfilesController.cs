@@ -91,6 +91,27 @@ public sealed class ProfilesController(
         }
     }
 
+    [HttpGet("{code}/snapshot")]
+    [ProducesResponseType(typeof(ProfileTickerSnapshotDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public IActionResult Snapshot(string code, [FromQuery] string ticker)
+    {
+        if (string.IsNullOrWhiteSpace(ticker))
+        {
+            return BadRequest(new { error = "ticker is required." });
+        }
+
+        try
+        {
+            return Ok(profileBacktestService.LiveSnapshot(code, ticker));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(new { error = ex.Message });
+        }
+    }
+
     [HttpGet("{code}/backtest")]
     [ProducesResponseType(typeof(ProfileBacktestResultDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]

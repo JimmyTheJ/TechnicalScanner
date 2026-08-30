@@ -28,6 +28,13 @@ export function formatMarketCap(value?: number | null): string {
   return `$${value.toLocaleString()}`
 }
 
+export function formatDay(value?: string | null): string {
+  if (!value) {
+    return '—'
+  }
+  return value.length >= 10 ? value.slice(0, 10) : value
+}
+
 export function formatDate(value?: string | null): string {
   if (!value) {
     return '—'

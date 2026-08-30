@@ -44,22 +44,15 @@ public static class ProfileScoring
     public static (decimal Score, Dictionary<string, decimal> Components) Score(
         IReadOnlyList<ScoreWeightSpec> weights,
         IReadOnlyDictionary<string, Dictionary<string, JsonElement>> valuesByCode,
-        SignalRuleEvaluator evaluator)
+        SignalRuleEvaluator evaluator,
+        IReadOnlyDictionary<string, Dictionary<string, JsonElement>>? previousValues = null)
     {
         var components = new Dictionary<string, decimal>();
         var score = 0m;
 
         foreach (var weight in weights)
         {
-            var rule = ProfileJson.Serialize(new ComparisonCondition
-            {
-                IndicatorCode = weight.IndicatorCode,
-                Field = weight.Field,
-                Operator = weight.Operator,
-                Value = weight.Value
-            });
-
-            if (!evaluator.Evaluate(rule, valuesByCode))
+            if (!Matches(weight, valuesByCode, previousValues, evaluator))
             {
                 continue;
             }
@@ -70,5 +63,42 @@ public static class ProfileScoring
         }
 
         return (score, components);
+    }
+
+    public static IReadOnlyList<ProfileScoreComponentDto> Explain(
+        IReadOnlyList<ScoreWeightSpec> weights,
+        IReadOnlyDictionary<string, Dictionary<string, JsonElement>> valuesByCode,
+        SignalRuleEvaluator evaluator,
+        IReadOnlyDictionary<string, Dictionary<string, JsonElement>>? previousValues = null)
+    {
+        return weights.Select(weight =>
+        {
+            var matched = Matches(weight, valuesByCode, previousValues, evaluator);
+            return new ProfileScoreComponentDto
+            {
+                Label = string.IsNullOrWhiteSpace(weight.Label) ? weight.IndicatorCode : weight.Label,
+                IndicatorCode = weight.IndicatorCode,
+                Field = weight.Field,
+                Operator = weight.Operator,
+                Matched = matched,
+                Weight = weight.Weight
+            };
+        }).ToList();
+    }
+
+    private static bool Matches(
+        ScoreWeightSpec weight,
+        IReadOnlyDictionary<string, Dictionary<string, JsonElement>> valuesByCode,
+        IReadOnlyDictionary<string, Dictionary<string, JsonElement>>? previousValues,
+        SignalRuleEvaluator evaluator)
+    {
+        var rule = ProfileJson.Serialize(new ComparisonCondition
+        {
+            IndicatorCode = weight.IndicatorCode,
+            Field = weight.Field,
+            Operator = weight.Operator,
+            Value = weight.Value
+        });
+        return evaluator.Evaluate(rule, valuesByCode, previousValues);
     }
 }

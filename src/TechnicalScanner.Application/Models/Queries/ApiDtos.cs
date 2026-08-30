@@ -68,3 +68,21 @@ public sealed class CreateSignalDefinitionRequest
     public string? Severity { get; set; }
     public string? Direction { get; set; }
 }
+
+public sealed class PriceCandlePointDto
+{
+    public DateOnly CandleDate { get; init; }
+    public decimal? Open { get; init; }
+    public decimal? High { get; init; }
+    public decimal? Low { get; init; }
+    public decimal Close { get; init; }
+    public long? Volume { get; init; }
+}
+
+public sealed class TickerSignalHistoryDto
+{
+    public DateTimeOffset ScanDateUtc { get; init; }
+    public required string SignalCode { get; init; }
+    public required string SignalName { get; init; }
+    public bool IsMatch { get; init; }
+}

@@ -104,4 +104,40 @@ public sealed class SignalQueryService(ITechnicalScannerDbContext dbContext)
 
         return new PagedResult<SignalMatchDto>(items, normalizedPage, normalizedPageSize, totalCount);
     }
+
+    public IReadOnlyList<TickerSignalHistoryDto> GetHistoryForTicker(string symbol, int limit)
+    {
+        var tickerId = dbContext.Tickers
+            .Where(t => t.Symbol == symbol && t.IsActive)
+            .Select(t => t.Id)
+            .FirstOrDefault();
+        if (tickerId == 0)
+        {
+            return [];
+        }
+
+        var latestScanDate = dbContext.SignalResults
+            .Where(r => r.TickerId == tickerId)
+            .Max(r => (DateTimeOffset?)r.ScanDateUtc);
+        if (latestScanDate is null)
+        {
+            return [];
+        }
+
+        var take = Math.Clamp(limit <= 0 ? 40 : limit, 1, 200);
+        return dbContext.SignalResults
+            .Join(dbContext.SignalDefinitions, r => r.SignalDefinitionId, s => s.Id, (r, s) => new { r, s })
+            .Where(x => x.r.TickerId == tickerId && x.r.ScanDateUtc == latestScanDate.Value)
+            .OrderByDescending(x => x.r.IsMatch)
+            .ThenBy(x => x.s.Code)
+            .Take(take)
+            .Select(x => new TickerSignalHistoryDto
+            {
+                ScanDateUtc = x.r.ScanDateUtc,
+                SignalCode = x.s.Code,
+                SignalName = x.s.Name,
+                IsMatch = x.r.IsMatch
+            })
+            .ToList();
+    }
 }

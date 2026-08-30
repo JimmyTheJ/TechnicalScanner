@@ -1,5 +1,4 @@
 using TechnicalScanner.Application.Signals;
-using TechnicalScanner.Domain.Enums;
 
 namespace TechnicalScanner.Tests.Signals;
 
@@ -112,4 +111,67 @@ public class SignalRuleEvaluatorTests
 
         Assert.Equal(["BMSB_W", "RSI_14_D", "SMA_200_D"], codes);
     }
+
+    [Fact]
+    public void Evaluate_CrossedAbove_RequiresPreviousBelowThreshold()
+    {
+        var evaluator = new SignalRuleEvaluator();
+        var rule = """
+            {
+              "indicatorCode": "RSI_14_D",
+              "field": "rsi",
+              "operator": "crossed_above",
+              "value": 30
+            }
+            """;
+        var current = Values(32);
+        var previous = Values(28);
+
+        Assert.True(evaluator.Evaluate(rule, current, previous));
+        Assert.False(evaluator.Evaluate(rule, current));
+        Assert.False(evaluator.Evaluate(rule, Values(28), Values(25)));
+        Assert.True(SignalRuleEvaluator.RequiresPrevious(rule));
+    }
+
+    [Fact]
+    public void Evaluate_Between_AcceptsArrayObjectAndCsv()
+    {
+        var evaluator = new SignalRuleEvaluator();
+        var values = Values(25);
+
+        Assert.True(evaluator.Evaluate(
+            """{"indicatorCode":"RSI_14_D","field":"rsi","operator":"between","value":[20,30]}""",
+            values));
+        Assert.True(evaluator.Evaluate(
+            """{"indicatorCode":"RSI_14_D","field":"rsi","operator":"between","value":{"min":20,"max":30}}""",
+            values));
+        Assert.True(evaluator.Evaluate(
+            """{"indicatorCode":"RSI_14_D","field":"rsi","operator":"between","value":"20,30"}""",
+            values));
+        Assert.False(evaluator.Evaluate(
+            """{"indicatorCode":"RSI_14_D","field":"rsi","operator":"not_between","value":[20,30]}""",
+            values));
+    }
+
+    [Fact]
+    public void Evaluate_RisingAndFalling_CompareAgainstPreviousBar()
+    {
+        var evaluator = new SignalRuleEvaluator();
+        var rising = """{"indicatorCode":"RSI_14_D","field":"rsi","operator":"rising"}""";
+        var falling = """{"indicatorCode":"RSI_14_D","field":"rsi","operator":"falling"}""";
+
+        Assert.True(evaluator.Evaluate(rising, Values(40), Values(30)));
+        Assert.False(evaluator.Evaluate(rising, Values(30), Values(40)));
+        Assert.True(evaluator.Evaluate(falling, Values(30), Values(40)));
+        Assert.False(evaluator.Evaluate(falling, Values(40)));
+    }
+
+    private static Dictionary<string, Dictionary<string, System.Text.Json.JsonElement>> Values(decimal rsi)
+        => new()
+        {
+            ["RSI_14_D"] = new()
+            {
+                ["rsi"] = System.Text.Json.JsonSerializer.SerializeToElement(rsi)
+            }
+        };
 }

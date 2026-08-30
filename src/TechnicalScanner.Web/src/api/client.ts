@@ -5,7 +5,9 @@ import type {
   IndicatorDefinition,
   IndicatorTypeCatalogEntry,
   PagedResult,
+  PriceCandlePoint,
   ProfileBacktestResult,
+  ProfileTickerSnapshot,
   ProfileUniverseBacktest,
   ScanProfile,
   ScannerLatest,
@@ -14,6 +16,7 @@ import type {
   SignalDefinition,
   SignalMatch,
   TickerListItem,
+  TickerSignalHistory,
   UpsertScanProfileRequest,
 } from './types'
 
@@ -120,6 +123,19 @@ export const api = {
 
   getTicker: (symbol: string) => getJson<TickerListItem>(`/api/tickers/${encodeURIComponent(symbol)}`),
 
+  getTickerCandles: (symbol: string, params?: { timeframe?: string; limit?: number }) =>
+    getJson<PriceCandlePoint[]>(
+      `/api/tickers/${encodeURIComponent(symbol)}/candles${buildQuery({
+        timeframe: params?.timeframe ?? 'D',
+        limit: params?.limit ?? 400,
+      })}`,
+    ),
+
+  getTickerSignals: (symbol: string, limit = 40) =>
+    getJson<TickerSignalHistory[]>(
+      `/api/tickers/${encodeURIComponent(symbol)}/signals${buildQuery({ limit })}`,
+    ),
+
   getIndicatorLatest: (ticker: string) =>
     getJson<IndicatorLatest[]>(`/api/indicators/latest${buildQuery({ ticker })}`),
 
@@ -156,6 +172,11 @@ export const api = {
 
   deactivateProfile: (code: string) =>
     sendJson<ScanProfile>(`/api/profiles/${encodeURIComponent(code)}`, 'DELETE'),
+
+  getProfileSnapshot: (code: string, ticker: string) =>
+    getJson<ProfileTickerSnapshot>(
+      `/api/profiles/${encodeURIComponent(code)}/snapshot${buildQuery({ ticker })}`,
+    ),
 
   backtestProfile: (code: string, ticker: string, forwardDays = 20) =>
     getJson<ProfileBacktestResult>(

@@ -31,6 +31,43 @@ public sealed class ProfileBacktestService(
         return ReplayTicker(profile, ticker, codes, LoadDefinitions(codes), Math.Clamp(forwardDays, 1, 252), from, to);
     }
 
+    public ProfileTickerSnapshotDto LiveSnapshot(string profileCode, string symbol)
+    {
+        var profile = scanProfileQueryService.Find(profileCode)
+            ?? throw new InvalidOperationException($"Profile '{profileCode}' was not found.");
+        var ticker = dbContext.Tickers.FirstOrDefault(t => t.Symbol == symbol && t.IsActive)
+            ?? throw new InvalidOperationException($"Ticker '{symbol}' was not found.");
+
+        var codes = ProfileIndicatorCodes(profile);
+        var pair = LatestIndicatorLookup.LoadCurrentAndPrevious(dbContext, [ticker.Id], codes);
+        var currentSnaps = pair.Current.GetValueOrDefault(ticker.Id) ?? [];
+        var previousSnaps = pair.Previous.GetValueOrDefault(ticker.Id);
+        var current = ToEvaluatorMap(currentSnaps);
+        var previous = ToEvaluatorMap(previousSnaps);
+        var evaluator = new SignalRuleEvaluator();
+        var specs = ProfileJson.Deserialize<List<ProfileIndicatorSpec>>(profile.IndicatorsJson);
+        var weights = ProfileJson.Deserialize<List<ScoreWeightSpec>>(profile.ScoreWeightsJson);
+        var match = evaluator.Evaluate(profile.RuleJson, current, previous);
+        var score = weights.Count == 0 ? (decimal?)null : ProfileScoring.Score(weights, current, evaluator, previous).Score;
+
+        return new ProfileTickerSnapshotDto
+        {
+            ProfileCode = profile.Code,
+            Symbol = ticker.Symbol,
+            ProfileMatch = match,
+            Score = score,
+            Components = ProfileScoring.Explain(weights, current, evaluator, previous),
+            Metrics = specs.Select(spec => currentSnaps.TryGetValue(spec.Code, out var snapshot)
+                ? new ScreenerMetricDto
+                {
+                    Code = spec.Code,
+                    PrimaryValue = snapshot.PrimaryValue,
+                    SecondaryValue = snapshot.SecondaryValue
+                }
+                : new ScreenerMetricDto { Code = spec.Code }).ToList()
+        };
+    }
+
     public ProfileUniverseBacktestDto? GetLatestUniverse(string profileCode)
     {
         var run = dbContext.ProfileBacktestRuns
@@ -295,5 +332,23 @@ public sealed class ProfileBacktestService(
         {
             return new ProfileUniverse();
         }
+    }
+
+    private static Dictionary<string, Dictionary<string, System.Text.Json.JsonElement>> ToEvaluatorMap(
+        Dictionary<string, LatestIndicatorSnapshot>? snapshots)
+    {
+        var result = new Dictionary<string, Dictionary<string, System.Text.Json.JsonElement>>(
+            StringComparer.OrdinalIgnoreCase);
+        if (snapshots is null)
+        {
+            return result;
+        }
+
+        foreach (var (code, snapshot) in snapshots)
+        {
+            result[code] = IndicatorValueMaps.ToFields(snapshot.Values);
+        }
+
+        return result;
     }
 }

@@ -166,6 +166,19 @@ internal static class SeedData
 
         EnsureProfile(
             db,
+            "RSI_TURNING_UP",
+            "RSI turning up",
+            "Daily RSI crossed back above 30, with a rising RSI as extra score.",
+            new ProfileUniverse { IncludeEtfs = true },
+            [Spec("RSI_14_D")],
+            """{"indicatorCode":"RSI_14_D","field":"rsi","operator":"crossed_above","value":30}""",
+            [
+                Weight("crossedAbove30", "RSI_14_D", "rsi", "crossed_above", 30, 2),
+                Weight("rsiRising", "RSI_14_D", "rsi", "rising", 0, 1)
+            ]);
+
+        EnsureProfile(
+            db,
             "VOLUME_CONFIRMED_CHEAP",
             "Volume-confirmed cheap",
             "At least 10% below the 200-day SMA, daily RSI under 40, and relative volume above 1.5.",

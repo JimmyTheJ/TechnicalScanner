@@ -289,6 +289,40 @@ export interface IndicatorCalculationResult {
   codes: string[]
 }
 
+export interface PriceCandlePoint {
+  candleDate: string
+  open?: number
+  high?: number
+  low?: number
+  close: number
+  volume?: number
+}
+
+export interface TickerSignalHistory {
+  scanDateUtc: string
+  signalCode: string
+  signalName: string
+  isMatch: boolean
+}
+
+export interface ProfileScoreComponent {
+  label: string
+  indicatorCode: string
+  field: string
+  operator: string
+  matched: boolean
+  weight: number
+}
+
+export interface ProfileTickerSnapshot {
+  profileCode: string
+  symbol: string
+  profileMatch: boolean
+  score?: number
+  components: ProfileScoreComponent[]
+  metrics: ScreenerMetric[]
+}
+
 export interface SectorHeatmapCell {
   sector: string
   tickerCount: number

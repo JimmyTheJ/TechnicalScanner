@@ -23,6 +23,7 @@ public static class ProfileReplay
         var closeList = closes.OrderBy(c => c.Date).ToList();
         var matchDays = 0;
         var previousMatch = false;
+        var previousSnapshot = (Dictionary<string, Dictionary<string, JsonElement>>?)null;
         var entries = new List<ProfileBacktestHitDto>();
 
         foreach (var date in dailyDates)
@@ -43,7 +44,9 @@ public static class ProfileReplay
                 }
             }
 
-            var isMatch = evaluator.Evaluate(ruleJson, snapshot);
+            var prior = previousSnapshot;
+            var isMatch = evaluator.Evaluate(ruleJson, snapshot, prior);
+            previousSnapshot = snapshot;
             if (!isMatch)
             {
                 previousMatch = false;
@@ -62,7 +65,7 @@ public static class ProfileReplay
                 continue;
             }
 
-            var (score, _) = ProfileScoring.Score(weights, snapshot, evaluator);
+            var (score, _) = ProfileScoring.Score(weights, snapshot, evaluator, prior);
             entries.Add(new ProfileBacktestHitDto
             {
                 Date = date,

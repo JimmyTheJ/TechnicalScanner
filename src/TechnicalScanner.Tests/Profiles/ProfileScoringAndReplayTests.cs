@@ -78,6 +78,75 @@ public class ProfileScoringAndReplayTests
     }
 
     [Fact]
+    public void Replay_CrossedAbove_EntersOnTheCrossBarOnly()
+    {
+        var dates = new[]
+        {
+            new DateOnly(2024, 1, 2),
+            new DateOnly(2024, 1, 3),
+            new DateOnly(2024, 1, 4)
+        };
+        var series = new Dictionary<string, IReadOnlyList<(DateOnly Date, Dictionary<string, JsonElement> Fields)>>
+        {
+            ["RSI_14_D"] =
+            [
+                (dates[0], Fields(25)),
+                (dates[1], Fields(32)),
+                (dates[2], Fields(40))
+            ]
+        };
+        var closes = dates.Select(d => (d, 100m)).ToList();
+        var rule = """
+            {"indicatorCode":"RSI_14_D","field":"rsi","operator":"crossed_above","value":30}
+            """;
+
+        var result = ProfileReplay.Replay(
+            "RSI_TURNING_UP",
+            "AAA",
+            rule,
+            [],
+            dates,
+            series,
+            closes,
+            forwardDays: 1);
+
+        Assert.Equal(1, result.MatchDays);
+        Assert.Equal(1, result.EntryCount);
+        Assert.Equal(new DateOnly(2024, 1, 3), result.Entries[0].Date);
+    }
+
+    [Fact]
+    public void Explain_ReportsMatchedAndMissedWeights()
+    {
+        var evaluator = new SignalRuleEvaluator();
+        var values = new Dictionary<string, Dictionary<string, JsonElement>>
+        {
+            ["RSI_14_D"] = new()
+            {
+                ["rsi"] = JsonSerializer.SerializeToElement(32m)
+            }
+        };
+        var previous = new Dictionary<string, Dictionary<string, JsonElement>>
+        {
+            ["RSI_14_D"] = new()
+            {
+                ["rsi"] = JsonSerializer.SerializeToElement(25m)
+            }
+        };
+        var weights = new List<ScoreWeightSpec>
+        {
+            Weight("cross", "RSI_14_D", "rsi", "crossed_above", 30, 2),
+            Weight("hot", "RSI_14_D", "rsi", ">", 70, 1)
+        };
+
+        var explained = ProfileScoring.Explain(weights, values, evaluator, previous);
+
+        Assert.True(explained[0].Matched);
+        Assert.False(explained[1].Matched);
+        Assert.Equal("cross", explained[0].Label);
+    }
+
+    [Fact]
     public void Stats_MedianAndMean_HandleEvenOddAndEmpty()
     {
         Assert.Null(ProfileBacktestStats.Median([]));

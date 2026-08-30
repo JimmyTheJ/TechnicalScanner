@@ -135,6 +135,26 @@ public sealed class ProfileUniverseBacktestDto
     public IReadOnlyList<ProfileUniverseBacktestHitDto> SampleEntries { get; init; } = [];
 }
 
+public sealed class ProfileScoreComponentDto
+{
+    public required string Label { get; init; }
+    public required string IndicatorCode { get; init; }
+    public required string Field { get; init; }
+    public required string Operator { get; init; }
+    public bool Matched { get; init; }
+    public decimal Weight { get; init; }
+}
+
+public sealed class ProfileTickerSnapshotDto
+{
+    public required string ProfileCode { get; init; }
+    public required string Symbol { get; init; }
+    public bool ProfileMatch { get; init; }
+    public decimal? Score { get; init; }
+    public IReadOnlyList<ProfileScoreComponentDto> Components { get; init; } = [];
+    public IReadOnlyList<ScreenerMetricDto> Metrics { get; init; } = [];
+}
+
 public sealed class IndicatorCalculationResultDto
 {
     public int Calculated { get; init; }

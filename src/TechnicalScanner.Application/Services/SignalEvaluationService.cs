@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
 using TechnicalScanner.Application.Abstractions;
+using TechnicalScanner.Application.Profiles;
+using TechnicalScanner.Application.Services.Queries;
 using TechnicalScanner.Application.Signals;
 using TechnicalScanner.Domain.Entities;
 
@@ -16,30 +18,28 @@ public sealed class SignalEvaluationService(
         var scanDate = DateTimeOffset.UtcNow;
         var signals = dbContext.SignalDefinitions.Where(s => s.IsActive).ToList();
         var tickers = dbContext.Tickers.Where(t => t.IsActive).ToList();
+        if (tickers.Count == 0 || signals.Count == 0)
+        {
+            return 0;
+        }
+
+        var codes = dbContext.IndicatorDefinitions.Where(d => d.IsActive).Select(d => d.Code).ToList();
+        var pair = LatestIndicatorLookup.LoadCurrentAndPrevious(
+            dbContext,
+            tickers.Select(t => t.Id).ToList(),
+            codes);
         var evaluated = 0;
 
         foreach (var ticker in tickers)
         {
-            var latestValues = dbContext.IndicatorValues
-                .Where(v => v.TickerId == ticker.Id)
-                .GroupBy(v => v.IndicatorDefinitionId)
-                .Select(g => g.OrderByDescending(v => v.CandleDate).First())
-                .ToList();
-
-            var valuesByCode = latestValues
-                .Join(
-                    dbContext.IndicatorDefinitions,
-                    value => value.IndicatorDefinitionId,
-                    definition => definition.Id,
-                    (value, definition) => new { definition.Code, value })
-                .ToDictionary(x => x.Code, x => JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(x.value.ValuesJson)
-                    ?? new Dictionary<string, JsonElement>());
+            var current = ToMap(pair.Current.GetValueOrDefault(ticker.Id));
+            var previous = ToMap(pair.Previous.GetValueOrDefault(ticker.Id));
+            var valuesJson = JsonSerializer.Serialize(current);
 
             foreach (var signal in signals)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-
-                var isMatch = ruleEvaluator.Evaluate(signal.RuleJson, valuesByCode);
+                var isMatch = ruleEvaluator.Evaluate(signal.RuleJson, current, previous);
                 var existing = dbContext.SignalResults.FirstOrDefault(r =>
                     r.ScanDateUtc == scanDate &&
                     r.TickerId == ticker.Id &&
@@ -54,14 +54,14 @@ public sealed class SignalEvaluationService(
                         TickerId = ticker.Id,
                         SignalDefinitionId = signal.Id,
                         IsMatch = isMatch,
-                        ValuesJson = JsonSerializer.Serialize(valuesByCode)
+                        ValuesJson = valuesJson
                     });
                 }
                 else
                 {
                     existing.ScanRunId = scanRunId;
                     existing.IsMatch = isMatch;
-                    existing.ValuesJson = JsonSerializer.Serialize(valuesByCode);
+                    existing.ValuesJson = valuesJson;
                 }
 
                 evaluated++;
@@ -71,5 +71,22 @@ public sealed class SignalEvaluationService(
         await dbContext.SaveChangesAsync(cancellationToken);
         logger.LogInformation("Evaluated {Count} signal results.", evaluated);
         return evaluated;
+    }
+
+    private static Dictionary<string, Dictionary<string, JsonElement>> ToMap(
+        Dictionary<string, LatestIndicatorSnapshot>? snapshots)
+    {
+        var result = new Dictionary<string, Dictionary<string, JsonElement>>(StringComparer.OrdinalIgnoreCase);
+        if (snapshots is null)
+        {
+            return result;
+        }
+
+        foreach (var (code, snapshot) in snapshots)
+        {
+            result[code] = IndicatorValueMaps.ToFields(snapshot.Values);
+        }
+
+        return result;
     }
 }

@@ -1,6 +1,7 @@
 using TechnicalScanner.Application.Abstractions;
 using TechnicalScanner.Application.Models.Queries;
 using TechnicalScanner.Domain.Entities;
+using TechnicalScanner.Domain.Enums;
 
 namespace TechnicalScanner.Application.Services.Queries;
 
@@ -52,6 +53,49 @@ public sealed class TickerQueryService(ITechnicalScannerDbContext dbContext)
                 IsEtf = t.IsEtf
             })
             .FirstOrDefault();
+    }
+
+    public IReadOnlyList<PriceCandlePointDto> GetCandles(
+        string symbol,
+        string timeframe,
+        DateOnly? from,
+        DateOnly? to,
+        int limit)
+    {
+        var ticker = dbContext.Tickers.FirstOrDefault(t => t.IsActive && t.Symbol == symbol);
+        if (ticker is null)
+        {
+            return [];
+        }
+
+        var timeframeCode = TimeframeExtensions.FromCode(string.IsNullOrWhiteSpace(timeframe) ? "D" : timeframe).ToCode();
+        var query = dbContext.PriceCandles.Where(p => p.TickerId == ticker.Id && p.Timeframe == timeframeCode);
+        if (from is not null)
+        {
+            query = query.Where(p => p.CandleDate >= from.Value);
+        }
+
+        if (to is not null)
+        {
+            query = query.Where(p => p.CandleDate <= to.Value);
+        }
+
+        var take = Math.Clamp(limit <= 0 ? 400 : limit, 50, 2000);
+        var rows = query
+            .OrderByDescending(p => p.CandleDate)
+            .Take(take)
+            .Select(p => new PriceCandlePointDto
+            {
+                CandleDate = p.CandleDate,
+                Open = p.Open,
+                High = p.High,
+                Low = p.Low,
+                Close = p.AdjustedClose ?? p.Close,
+                Volume = p.Volume
+            })
+            .ToList();
+        rows.Reverse();
+        return rows;
     }
 
     private static IQueryable<Ticker> ApplyFilters(IQueryable<Ticker> query, TickerListQuery filters)

@@ -301,6 +301,28 @@ textarea {
   background: rgba(56, 189, 248, 0.14);
 }
 
+.chart-container.price-chart {
+  min-height: 360px;
+}
+
+.hit {
+  color: #4ade80;
+}
+
+.miss {
+  color: #64748b;
+}
+
+.chip.match {
+  background: rgba(74, 222, 128, 0.16);
+  color: #86efac;
+}
+
+.chip.nomatch {
+  background: rgba(148, 163, 184, 0.12);
+  color: #94a3b8;
+}
+
 pre {
   white-space: pre-wrap;
   word-break: break-word;
