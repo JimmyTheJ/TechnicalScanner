@@ -17,8 +17,12 @@ public static class LatestIndicatorLookup
         IReadOnlyCollection<long> tickerIds,
         IReadOnlyCollection<string> codes)
     {
-        var dates = LatestDates(dbContext, tickerIds, codes);
-        return dates is null ? [] : Index(LoadAtDates(dbContext, dates));
+        if (!TryResolve(dbContext, tickerIds, codes, out var tickerIdList, out var definitionIds))
+        {
+            return [];
+        }
+
+        return Index(Materialize(QueryLatestSnapshots(dbContext, tickerIdList, definitionIds)));
     }
 
     public static LatestPair LoadCurrentAndPrevious(
@@ -26,23 +30,13 @@ public static class LatestIndicatorLookup
         IReadOnlyCollection<long> tickerIds,
         IReadOnlyCollection<string> codes)
     {
-        var latestDates = LatestDates(dbContext, tickerIds, codes);
-        if (latestDates is null)
+        if (!TryResolve(dbContext, tickerIds, codes, out var tickerIdList, out var definitionIds))
         {
             return new LatestPair([], []);
         }
 
-        var current = LoadAtDates(dbContext, latestDates);
-        var previousDates =
-            from value in dbContext.IndicatorValues
-            join latest in latestDates
-                on new { value.TickerId, value.IndicatorDefinitionId }
-                equals new { latest.TickerId, latest.IndicatorDefinitionId }
-            where value.CandleDate < latest.Date
-            group value by new { value.TickerId, value.IndicatorDefinitionId } into grouped
-            select new LatestDateRow(grouped.Key.TickerId, grouped.Key.IndicatorDefinitionId, grouped.Max(v => v.CandleDate));
-        var previous = LoadAtDates(dbContext, previousDates);
-
+        var current = Materialize(QueryLatestSnapshots(dbContext, tickerIdList, definitionIds));
+        var previous = Materialize(QueryPreviousSnapshots(dbContext, tickerIdList, definitionIds));
         return new LatestPair(Index(current), Index(previous));
     }
 
@@ -79,55 +73,111 @@ public static class LatestIndicatorLookup
                     StringComparer.OrdinalIgnoreCase));
     }
 
-    private static List<(long TickerId, string Code, string ValuesJson, decimal? PrimaryValue, decimal? SecondaryValue)> LoadAtDates(
+    internal static IQueryable<IndicatorSnapshotRow> QueryLatestSnapshots(
         ITechnicalScannerDbContext dbContext,
-        IQueryable<LatestDateRow> dates)
+        List<long> tickerIdList,
+        List<long> definitionIds)
     {
-        return (
+        var latestDates = dbContext.IndicatorValues
+            .Where(v => tickerIdList.Contains(v.TickerId) && definitionIds.Contains(v.IndicatorDefinitionId))
+            .GroupBy(v => new { v.TickerId, v.IndicatorDefinitionId })
+            .Select(g => new { g.Key.TickerId, g.Key.IndicatorDefinitionId, Date = g.Max(v => v.CandleDate) });
+
+        return
             from value in dbContext.IndicatorValues
-            join latest in dates
+            join latest in latestDates
                 on new { value.TickerId, value.IndicatorDefinitionId, value.CandleDate }
                 equals new { latest.TickerId, latest.IndicatorDefinitionId, CandleDate = latest.Date }
             join definition in dbContext.IndicatorDefinitions on value.IndicatorDefinitionId equals definition.Id
-            select new
+            select new IndicatorSnapshotRow
             {
-                value.TickerId,
-                definition.Code,
-                value.ValuesJson,
-                value.PrimaryValue,
-                value.SecondaryValue
-            }).AsEnumerable()
+                TickerId = value.TickerId,
+                Code = definition.Code,
+                ValuesJson = value.ValuesJson,
+                PrimaryValue = value.PrimaryValue,
+                SecondaryValue = value.SecondaryValue
+            };
+    }
+
+    internal static IQueryable<IndicatorSnapshotRow> QueryPreviousSnapshots(
+        ITechnicalScannerDbContext dbContext,
+        List<long> tickerIdList,
+        List<long> definitionIds)
+    {
+        var latestDates = dbContext.IndicatorValues
+            .Where(v => tickerIdList.Contains(v.TickerId) && definitionIds.Contains(v.IndicatorDefinitionId))
+            .GroupBy(v => new { v.TickerId, v.IndicatorDefinitionId })
+            .Select(g => new { g.Key.TickerId, g.Key.IndicatorDefinitionId, Date = g.Max(v => v.CandleDate) });
+
+        var previousDates =
+            from value in dbContext.IndicatorValues
+            join latest in latestDates
+                on new { value.TickerId, value.IndicatorDefinitionId }
+                equals new { latest.TickerId, latest.IndicatorDefinitionId }
+            where value.CandleDate < latest.Date
+            group value by new { value.TickerId, value.IndicatorDefinitionId } into grouped
+            select new { grouped.Key.TickerId, grouped.Key.IndicatorDefinitionId, Date = grouped.Max(v => v.CandleDate) };
+
+        return
+            from value in dbContext.IndicatorValues
+            join previous in previousDates
+                on new { value.TickerId, value.IndicatorDefinitionId, value.CandleDate }
+                equals new { previous.TickerId, previous.IndicatorDefinitionId, CandleDate = previous.Date }
+            join definition in dbContext.IndicatorDefinitions on value.IndicatorDefinitionId equals definition.Id
+            select new IndicatorSnapshotRow
+            {
+                TickerId = value.TickerId,
+                Code = definition.Code,
+                ValuesJson = value.ValuesJson,
+                PrimaryValue = value.PrimaryValue,
+                SecondaryValue = value.SecondaryValue
+            };
+    }
+
+    internal sealed class IndicatorSnapshotRow
+    {
+        public long TickerId { get; init; }
+        public string Code { get; init; } = "";
+        public string ValuesJson { get; init; } = "";
+        public decimal? PrimaryValue { get; init; }
+        public decimal? SecondaryValue { get; init; }
+    }
+
+    private static List<(long TickerId, string Code, string ValuesJson, decimal? PrimaryValue, decimal? SecondaryValue)> Materialize(
+        IQueryable<IndicatorSnapshotRow> query)
+    {
+        return query
+            .AsEnumerable()
             .Select(row => (row.TickerId, row.Code, row.ValuesJson, row.PrimaryValue, row.SecondaryValue))
             .ToList();
     }
 
-    private static IQueryable<LatestDateRow>? LatestDates(
+    private static bool TryResolve(
         ITechnicalScannerDbContext dbContext,
         IReadOnlyCollection<long> tickerIds,
-        IReadOnlyCollection<string> codes)
+        IReadOnlyCollection<string> codes,
+        out List<long> tickerIdList,
+        out List<long> definitionIds)
     {
+        tickerIdList = [];
+        definitionIds = [];
         if (tickerIds.Count == 0 || codes.Count == 0)
         {
-            return null;
+            return false;
         }
 
-        var tickerIdList = tickerIds as List<long> ?? tickerIds.ToList();
+        tickerIdList = tickerIds as List<long> ?? tickerIds.ToList();
         var codeList = codes as List<string> ?? codes.ToList();
         var definitions = dbContext.IndicatorDefinitions
             .Where(d => codeList.Contains(d.Code))
-            .Select(d => new { d.Id, d.Code })
+            .Select(d => d.Id)
             .ToList();
         if (definitions.Count == 0)
         {
-            return null;
+            return false;
         }
 
-        var definitionIds = definitions.Select(d => d.Id).ToList();
-        return dbContext.IndicatorValues
-            .Where(v => tickerIdList.Contains(v.TickerId) && definitionIds.Contains(v.IndicatorDefinitionId))
-            .GroupBy(v => new { v.TickerId, v.IndicatorDefinitionId })
-            .Select(g => new LatestDateRow(g.Key.TickerId, g.Key.IndicatorDefinitionId, g.Max(v => v.CandleDate)));
+        definitionIds = definitions;
+        return true;
     }
-
-    private sealed record LatestDateRow(long TickerId, long IndicatorDefinitionId, DateOnly Date);
 }

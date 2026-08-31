@@ -1,5 +1,7 @@
 using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
 using TechnicalScanner.Application.Services.Queries;
+using TechnicalScanner.Infrastructure.Persistence;
 
 namespace TechnicalScanner.Tests.Queries;
 
@@ -23,4 +25,31 @@ public class LatestIndicatorLookupTests
         Assert.Equal(55m, lookup[2]["RSI_14_D"].PrimaryValue);
         Assert.False(lookup.ContainsKey(3));
     }
+
+    [Fact]
+    public void QueryLatestSnapshots_TranslatesForNpgsql()
+    {
+        using var db = CreateNpgsqlContext();
+
+        var sql = LatestIndicatorLookup.QueryLatestSnapshots(db, [1L], [1L]).ToQueryString();
+
+        Assert.Contains("indicator_value", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("MAX(", sql, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void QueryPreviousSnapshots_TranslatesForNpgsql()
+    {
+        using var db = CreateNpgsqlContext();
+
+        var sql = LatestIndicatorLookup.QueryPreviousSnapshots(db, [1L], [1L]).ToQueryString();
+
+        Assert.Contains("indicator_value", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("MAX(", sql, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static TechnicalScannerDbContext CreateNpgsqlContext()
+        => new(new DbContextOptionsBuilder<TechnicalScannerDbContext>()
+            .UseNpgsql("Host=127.0.0.1;Database=translation_check")
+            .Options);
 }
