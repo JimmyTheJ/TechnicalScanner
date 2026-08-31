@@ -1,7 +1,10 @@
+using System.Net;
+using System.Net.Http;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using TechnicalScanner.Application;
 using TechnicalScanner.Application.Abstractions;
@@ -40,12 +43,20 @@ public static class DependencyInjection
             client.Timeout = TimeSpan.FromMinutes(2);
             client.DefaultRequestHeaders.UserAgent.ParseAdd("TechnicalScanner/1.0");
         });
-        services.AddHttpClient<YahooFinanceMarketDataProvider>(client =>
-        {
-            client.Timeout = TimeSpan.FromMinutes(2);
-            client.DefaultRequestHeaders.UserAgent.ParseAdd("TechnicalScanner/1.0");
-        });
+        services.AddHttpClient(YahooFinanceSession.HttpClientName, YahooFinanceSession.ConfigureClient)
+            .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+            {
+                AutomaticDecompression = DecompressionMethods.All,
+                UseCookies = true,
+                CookieContainer = new CookieContainer(),
+                PooledConnectionLifetime = Timeout.InfiniteTimeSpan
+            })
+            .SetHandlerLifetime(Timeout.InfiniteTimeSpan);
 
+        services.AddSingleton<YahooFinanceSession>(sp =>
+            new YahooFinanceSession(
+                sp.GetRequiredService<IHttpClientFactory>().CreateClient(YahooFinanceSession.HttpClientName),
+                sp.GetRequiredService<ILogger<YahooFinanceSession>>()));
         services.AddSingleton<SeedMarketDataProvider>();
         services.AddSingleton<YahooFinanceMarketDataProvider>();
         services.AddSingleton<IMarketDataProvider>(sp =>
@@ -58,7 +69,7 @@ public static class DependencyInjection
             return new ResilientRateLimitedMarketDataProvider(
                 inner,
                 sp.GetRequiredService<IOptions<MarketDataOptions>>(),
-                sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<ResilientRateLimitedMarketDataProvider>>());
+                sp.GetRequiredService<ILogger<ResilientRateLimitedMarketDataProvider>>());
         });
 
         services.AddHttpClient(nameof(HttpAlertChannelBase), client =>

@@ -210,6 +210,8 @@ Phase 4 uses **Yahoo Finance** for historical candles and public US/CA universe 
 - US: NASDAQ Trader symbol directories (NYSE, NASDAQ, AMEX, etc.)
 - Canada: TSX / TSXV company directories
 
+Yahoo chart calls use a sticky `HttpClient` with browser-like headers, `fc.yahoo.com` cookies, and a `getcrumb` token. Yahoo returns HTTP 429 for library/default User-Agents even on a single request; the bot-style `TechnicalScanner/1.0` agent is not accepted.
+
 Set `MarketData__Provider=Seed` in `.env` (or `"Provider": "Seed"` in `appsettings.json`) to use the original 10-ticker synthetic provider for local/dev testing.
 
 ### Rate limiting and retries

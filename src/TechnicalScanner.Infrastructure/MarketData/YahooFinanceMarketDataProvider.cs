@@ -11,7 +11,7 @@ using TechnicalScanner.Infrastructure.MarketData.Universe;
 namespace TechnicalScanner.Infrastructure.MarketData;
 
 public sealed class YahooFinanceMarketDataProvider(
-    HttpClient httpClient,
+    YahooFinanceSession yahooFinanceSession,
     UsTickerUniverseLoader usTickerUniverseLoader,
     CanadianTickerUniverseLoader canadianTickerUniverseLoader,
     IOptions<MarketDataOptions> options,
@@ -58,7 +58,7 @@ public sealed class YahooFinanceMarketDataProvider(
             $"https://query1.finance.yahoo.com/v8/finance/chart/{Uri.EscapeDataString(providerSymbol)}" +
             $"?interval=1d&period1={period1}&period2={period2}&includeAdjustedClose=true";
 
-        using var response = await httpClient.GetAsync(url, cancellationToken);
+        using var response = await yahooFinanceSession.GetChartAsync(url, cancellationToken);
         response.EnsureSuccessStatusCode();
 
         await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
