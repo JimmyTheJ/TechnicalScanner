@@ -139,7 +139,26 @@ public sealed class ResilientRateLimitedMarketDataProvider : IMarketDataProvider
         => ex is HttpRequestException { StatusCode: HttpStatusCode.TooManyRequests };
 
     private static bool IsTransient(Exception ex)
-        => ex is HttpRequestException or TaskCanceledException or TimeoutException;
+    {
+        if (ex is TaskCanceledException or TimeoutException)
+        {
+            return true;
+        }
+
+        if (ex is not HttpRequestException http)
+        {
+            return false;
+        }
+
+        // Network failures have no status. Retry 408 and 5xx only — 404 is a missing symbol.
+        if (http.StatusCode is null)
+        {
+            return true;
+        }
+
+        var status = (int)http.StatusCode.Value;
+        return status == 408 || status >= 500;
+    }
 }
 
 internal static class MarketDataBackoff

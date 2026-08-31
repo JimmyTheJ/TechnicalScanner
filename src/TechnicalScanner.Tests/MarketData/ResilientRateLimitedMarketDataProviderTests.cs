@@ -146,6 +146,39 @@ public class ResilientRateLimitedMarketDataProviderTests
         Assert.Equal(4, calls);
     }
 
+    [Fact]
+    public async Task GetHistoricalCandles_DoesNotRetryNotFound()
+    {
+        var calls = 0;
+        var delays = new List<TimeSpan>();
+        var inner = new StubMarketDataProvider(() =>
+        {
+            calls++;
+            throw new HttpRequestException("Not Found", null, HttpStatusCode.NotFound);
+        });
+
+        var provider = CreateProvider(inner, delays, new MarketDataOptions
+        {
+            RequestsPerSecond = 0,
+            MaxRetries = 5,
+            RetryDelaySeconds = 45
+        });
+
+        var ex = await Assert.ThrowsAsync<HttpRequestException>(() =>
+            provider.GetHistoricalCandlesAsync(
+                "ACHR.W",
+                "NYSE",
+                "US",
+                Timeframe.D,
+                new DateOnly(2024, 1, 1),
+                new DateOnly(2024, 1, 31),
+                CancellationToken.None));
+
+        Assert.Equal(HttpStatusCode.NotFound, ex.StatusCode);
+        Assert.Equal(1, calls);
+        Assert.Empty(delays);
+    }
+
     private static ResilientRateLimitedMarketDataProvider CreateProvider(
         IMarketDataProvider inner,
         List<TimeSpan> delays,

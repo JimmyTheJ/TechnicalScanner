@@ -1,4 +1,4 @@
-using System.Globalization;
+using System.Net;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -59,6 +59,15 @@ public sealed class YahooFinanceMarketDataProvider(
             $"?interval=1d&period1={period1}&period2={period2}&includeAdjustedClose=true";
 
         using var response = await yahooFinanceSession.GetChartAsync(url, cancellationToken);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            logger.LogInformation(
+                "Yahoo has no chart for {Symbol} ({ProviderSymbol}); skipping.",
+                symbol,
+                providerSymbol);
+            return [];
+        }
+
         response.EnsureSuccessStatusCode();
 
         await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
