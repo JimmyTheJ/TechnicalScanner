@@ -12,6 +12,8 @@ public sealed class PriceImportService(
     ILogger<PriceImportService> logger)
 {
     private const int LookbackDaysForCorrections = 5;
+    private const int ProgressLogInterval = 500;
+    private const int MaxConsecutiveRateLimitedTickers = 2;
 
     public Task<int> UpdatePricesAsync(int years, CancellationToken cancellationToken)
         => UpdatePricesAsync(years, incremental: false, cancellationToken);
@@ -22,14 +24,28 @@ public sealed class PriceImportService(
         var defaultStartDate = endDate.AddYears(-years);
         var tickers = dbContext.Tickers.Where(t => t.IsActive).ToList();
         var updated = 0;
+        var alreadyCurrent = 0;
+        var failed = 0;
+        var processed = 0;
+        var consecutiveRateLimitedTickers = 0;
 
         foreach (var ticker in tickers)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            processed++;
 
             try
             {
-                var startDate = ResolveStartDate(ticker.Id, defaultStartDate, incremental);
+                var latestCandleDate = GetLatestDailyCandleDate(ticker.Id);
+                if (incremental && IncrementalPriceFreshness.HasCurrentSession(latestCandleDate, endDate))
+                {
+                    alreadyCurrent++;
+                    updated++;
+                    LogProgressIfNeeded(processed, tickers.Count, updated, alreadyCurrent, failed);
+                    continue;
+                }
+
+                var startDate = ResolveStartDate(latestCandleDate, defaultStartDate, incremental);
                 if (startDate > endDate)
                 {
                     continue;
@@ -89,9 +105,34 @@ public sealed class PriceImportService(
 
                 await dbContext.SaveChangesAsync(cancellationToken);
                 updated++;
+                consecutiveRateLimitedTickers = 0;
+            }
+            catch (MarketDataRateLimitedException ex)
+            {
+                failed++;
+                consecutiveRateLimitedTickers++;
+                await operationLogger.LogFailureAsync(
+                    ticker.Symbol,
+                    "update-prices",
+                    ex.Message,
+                    ticker.Id,
+                    cancellationToken);
+
+                if (consecutiveRateLimitedTickers >= MaxConsecutiveRateLimitedTickers)
+                {
+                    logger.LogError(
+                        "Stopping price import after {RateLimited} consecutive tickers were rate-limited. Updated {Updated}/{Total} (already current: {AlreadyCurrent}). Remaining tickers will be fetched on a later incremental run.",
+                        consecutiveRateLimitedTickers,
+                        updated,
+                        tickers.Count,
+                        alreadyCurrent);
+                    break;
+                }
             }
             catch (Exception ex)
             {
+                failed++;
+                consecutiveRateLimitedTickers = 0;
                 await operationLogger.LogFailureAsync(
                     ticker.Symbol,
                     "update-prices",
@@ -99,31 +140,47 @@ public sealed class PriceImportService(
                     ticker.Id,
                     cancellationToken);
             }
+
+            LogProgressIfNeeded(processed, tickers.Count, updated, alreadyCurrent, failed);
         }
 
         logger.LogInformation(
-            "Updated daily prices for {Count}/{Total} tickers (incremental={Incremental}).",
+            "Updated daily prices for {Count}/{Total} tickers (incremental={Incremental}, alreadyCurrent={AlreadyCurrent}, failed={Failed}).",
             updated,
             tickers.Count,
-            incremental);
+            incremental,
+            alreadyCurrent,
+            failed);
 
         return updated;
     }
 
-    private DateOnly ResolveStartDate(long tickerId, DateOnly defaultStartDate, bool incremental)
+    private void LogProgressIfNeeded(int processed, int total, int updated, int alreadyCurrent, int failed)
     {
-        if (!incremental)
+        if (processed % ProgressLogInterval != 0)
         {
-            return defaultStartDate;
+            return;
         }
 
-        var latestCandleDate = dbContext.PriceCandles
+        logger.LogInformation(
+            "Price import progress: {Processed}/{Total} tickers ({Updated} updated, {AlreadyCurrent} already current, {Failed} failed).",
+            processed,
+            total,
+            updated,
+            alreadyCurrent,
+            failed);
+    }
+
+    private DateOnly? GetLatestDailyCandleDate(long tickerId)
+        => dbContext.PriceCandles
             .Where(p => p.TickerId == tickerId && p.Timeframe == Timeframe.D.ToCode())
             .OrderByDescending(p => p.CandleDate)
             .Select(p => (DateOnly?)p.CandleDate)
             .FirstOrDefault();
 
-        if (latestCandleDate is null)
+    private static DateOnly ResolveStartDate(DateOnly? latestCandleDate, DateOnly defaultStartDate, bool incremental)
+    {
+        if (!incremental || latestCandleDate is null)
         {
             return defaultStartDate;
         }

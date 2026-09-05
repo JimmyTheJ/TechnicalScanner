@@ -102,6 +102,50 @@ public class YahooFinanceSessionTests
         Assert.Equal(2, chartCalls);
     }
 
+    [Fact]
+    public async Task GetChartAsync_RefreshesCrumbAfterTooManyRequests()
+    {
+        var crumbCalls = 0;
+        var chartCalls = 0;
+        var handler = new ScriptedHandler
+        {
+            Respond = request =>
+            {
+                var url = request.RequestUri!.ToString();
+                if (url.Contains("fc.yahoo.com", StringComparison.OrdinalIgnoreCase))
+                {
+                    return Text(HttpStatusCode.NotFound, string.Empty);
+                }
+
+                if (url.Contains("getcrumb", StringComparison.OrdinalIgnoreCase))
+                {
+                    crumbCalls++;
+                    return Text(HttpStatusCode.OK, crumbCalls == 1 ? "old-crumb" : "new-crumb");
+                }
+
+                chartCalls++;
+                if (url.Contains("old-crumb", StringComparison.Ordinal))
+                {
+                    return Text(HttpStatusCode.TooManyRequests, "Too Many Requests");
+                }
+
+                Assert.Contains("new-crumb", url, StringComparison.Ordinal);
+                return Text(HttpStatusCode.OK, "{}");
+            }
+        };
+
+        using var http = new HttpClient(handler);
+        var session = new YahooFinanceSession(http, NullLogger<YahooFinanceSession>.Instance);
+
+        using var response = await session.GetChartAsync(
+            "https://query1.finance.yahoo.com/v8/finance/chart/AAMI?interval=1d",
+            CancellationToken.None);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(2, crumbCalls);
+        Assert.Equal(2, chartCalls);
+    }
+
     private static HttpResponseMessage Text(HttpStatusCode status, string body)
         => new(status) { Content = new StringContent(body) };
 

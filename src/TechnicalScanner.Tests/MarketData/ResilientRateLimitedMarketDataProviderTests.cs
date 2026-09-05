@@ -98,7 +98,8 @@ public class ResilientRateLimitedMarketDataProviderTests
             MaxRetries = 2,
             TooManyRequestsDelayMinutes = 30,
             TooManyRequestsAdditionalMinutes = 10,
-            TooManyRequestsMultiplier = 1.5
+            TooManyRequestsMultiplier = 1.5,
+            TooManyRequestsMaxConsecutive = 8
         };
 
         var provider = CreateProvider(inner, delays, options);
@@ -136,7 +137,8 @@ public class ResilientRateLimitedMarketDataProviderTests
             MaxRetries = 2,
             TooManyRequestsDelayMinutes = 30,
             TooManyRequestsAdditionalMinutes = 30,
-            TooManyRequestsMultiplier = 1
+            TooManyRequestsMultiplier = 1,
+            TooManyRequestsMaxConsecutive = 8
         };
 
         var provider = CreateProvider(inner, [], options);
@@ -161,7 +163,8 @@ public class ResilientRateLimitedMarketDataProviderTests
         {
             RequestsPerSecond = 0,
             MaxRetries = 5,
-            RetryDelaySeconds = 45
+            RetryDelaySeconds = 45,
+            TooManyRequestsMaxConsecutive = 8
         });
 
         var ex = await Assert.ThrowsAsync<HttpRequestException>(() =>
@@ -179,6 +182,80 @@ public class ResilientRateLimitedMarketDataProviderTests
         Assert.Empty(delays);
     }
 
+    [Fact]
+    public async Task GetHistoricalCandles_GivesUpAfterMaxConsecutive429s()
+    {
+        var calls = 0;
+        var delays = new List<TimeSpan>();
+        var inner = new StubMarketDataProvider(() =>
+        {
+            calls++;
+            throw new HttpRequestException("Too Many Requests", null, HttpStatusCode.TooManyRequests);
+        });
+
+        var options = new MarketDataOptions
+        {
+            RequestsPerSecond = 0,
+            MaxRetries = 8,
+            TooManyRequestsDelayMinutes = 30,
+            TooManyRequestsAdditionalMinutes = 30,
+            TooManyRequestsMultiplier = 1,
+            TooManyRequestsMaxConsecutive = 2
+        };
+
+        var provider = CreateProvider(inner, delays, options);
+
+        var ex = await Assert.ThrowsAsync<MarketDataRateLimitedException>(() =>
+            provider.GetHistoricalCandlesAsync(
+                "MPCT.DB",
+                "TSX",
+                "CA",
+                Timeframe.D,
+                new DateOnly(2024, 1, 1),
+                new DateOnly(2024, 1, 31),
+                CancellationToken.None));
+
+        Assert.Equal(2, calls);
+        Assert.Equal(2, ex.ConsecutiveFailures);
+        Assert.Equal([TimeSpan.FromMinutes(30)], delays);
+    }
+
+    [Fact]
+    public async Task GetHistoricalCandles_DoesNotWaitOnThe429ThatOpensTheCircuit()
+    {
+        var calls = 0;
+        var delays = new List<TimeSpan>();
+        var inner = new StubMarketDataProvider(() =>
+        {
+            calls++;
+            throw new HttpRequestException("Too Many Requests", null, HttpStatusCode.TooManyRequests);
+        });
+
+        var options = new MarketDataOptions
+        {
+            RequestsPerSecond = 0,
+            TooManyRequestsDelayMinutes = 60,
+            TooManyRequestsAdditionalMinutes = 0,
+            TooManyRequestsMultiplier = 2,
+            TooManyRequestsMaxConsecutive = 1
+        };
+
+        var provider = CreateProvider(inner, delays, options);
+
+        await Assert.ThrowsAsync<MarketDataRateLimitedException>(() =>
+            provider.GetHistoricalCandlesAsync(
+                "MPCT.DB",
+                "TSX",
+                "CA",
+                Timeframe.D,
+                new DateOnly(2024, 1, 1),
+                new DateOnly(2024, 1, 31),
+                CancellationToken.None));
+
+        Assert.Equal(1, calls);
+        Assert.Empty(delays);
+    }
+
     private static ResilientRateLimitedMarketDataProvider CreateProvider(
         IMarketDataProvider inner,
         List<TimeSpan> delays,
@@ -190,7 +267,8 @@ public class ResilientRateLimitedMarketDataProviderTests
             MaxRetries = 3,
             TooManyRequestsDelayMinutes = 30,
             TooManyRequestsAdditionalMinutes = 30,
-            TooManyRequestsMultiplier = 1
+            TooManyRequestsMultiplier = 1,
+            TooManyRequestsMaxConsecutive = 8
         };
 
         return new ResilientRateLimitedMarketDataProvider(

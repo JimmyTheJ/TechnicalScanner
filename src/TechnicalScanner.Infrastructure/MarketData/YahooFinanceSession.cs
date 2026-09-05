@@ -38,13 +38,16 @@ public sealed class YahooFinanceSession
     public async Task<HttpResponseMessage> GetChartAsync(string chartUrl, CancellationToken cancellationToken)
     {
         var response = await SendChartAsync(chartUrl, forceRefresh: false, cancellationToken);
-        if (response.StatusCode != HttpStatusCode.Unauthorized)
+        if (response.StatusCode is not HttpStatusCode.Unauthorized and not HttpStatusCode.TooManyRequests)
         {
             return response;
         }
 
+        var status = response.StatusCode;
         response.Dispose();
-        _logger.LogInformation("Yahoo chart request was unauthorized; refreshing crumb and retrying.");
+        _logger.LogInformation(
+            "Yahoo chart request returned {StatusCode}; refreshing crumb and retrying.",
+            (int)status);
         return await SendChartAsync(chartUrl, forceRefresh: true, cancellationToken);
     }
 

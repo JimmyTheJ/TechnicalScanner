@@ -71,12 +71,29 @@ public sealed class ResilientRateLimitedMarketDataProvider : IMarketDataProvider
             }
             catch (Exception ex) when (IsTooManyRequests(ex))
             {
-                var delay = RegisterTooManyRequestsDelay(settings);
+                var consecutive = Interlocked.Increment(ref _consecutiveTooManyRequests);
+                var maxConsecutive = settings.TooManyRequestsMaxConsecutive;
+                if (maxConsecutive > 0 && consecutive >= maxConsecutive)
+                {
+                    _logger.LogError(
+                        ex,
+                        "Market data rate limited (429) during {Operation}. Consecutive 429s: {Consecutive} reached the maximum of {Max}. Giving up on this request.",
+                        operation,
+                        consecutive,
+                        maxConsecutive);
+                    throw new MarketDataRateLimitedException(operation, consecutive, ex);
+                }
+
+                var delay = MarketDataBackoff.TooManyRequestsDelay(
+                    consecutive,
+                    settings.TooManyRequestsDelayMinutes,
+                    settings.TooManyRequestsAdditionalMinutes,
+                    settings.TooManyRequestsMultiplier);
                 _logger.LogWarning(
                     ex,
                     "Market data rate limited (429) during {Operation}. Consecutive 429s: {Consecutive}. Waiting {DelayMinutes} minutes before retrying.",
                     operation,
-                    _consecutiveTooManyRequests,
+                    consecutive,
                     delay.TotalMinutes);
 
                 await _delayAsync(delay, cancellationToken);
@@ -95,16 +112,6 @@ public sealed class ResilientRateLimitedMarketDataProvider : IMarketDataProvider
                 await _delayAsync(delay, cancellationToken);
             }
         }
-    }
-
-    private TimeSpan RegisterTooManyRequestsDelay(MarketDataOptions settings)
-    {
-        var consecutive = Interlocked.Increment(ref _consecutiveTooManyRequests);
-        return MarketDataBackoff.TooManyRequestsDelay(
-            consecutive,
-            settings.TooManyRequestsDelayMinutes,
-            settings.TooManyRequestsAdditionalMinutes,
-            settings.TooManyRequestsMultiplier);
     }
 
     private void ResetTooManyRequestsBackoff()

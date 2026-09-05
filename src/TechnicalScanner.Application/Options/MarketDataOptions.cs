@@ -18,6 +18,8 @@ public sealed class MarketDataOptions
 
     public double TooManyRequestsMultiplier { get; set; } = 1;
 
+    public int TooManyRequestsMaxConsecutive { get; set; } = 2;
+
     public int InitialHistoryYears { get; set; } = 10;
 
     public UniverseOptions Universe { get; set; } = new();
